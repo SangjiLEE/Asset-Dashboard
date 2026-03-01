@@ -1,14 +1,115 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-  <link href='/style.css' rel='stylesheet'>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포트폴리오 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
-  <script defer type="text/javascript" src="/main.js"></script>
+<div class="wrap">
+
+<header>
+  <div class="logo">PORTFOLIO<span>/</span>DESK</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span style="font-size:11px;color:var(--text3);"><span class="pulse"></span>AI 데이터 연동</span>
+    <div class="htime" id="htime"></div>
+  </div>
+</header>
+
+<!-- Summary Cards -->
+<div class="cards">
+  <div class="card"><div class="card-label">총 투자금액</div><div class="card-val" id="cInvested">—</div><div class="card-sub">매수가 기준</div></div>
+  <div class="card"><div class="card-label">현재 평가금액</div><div class="card-val" id="cCurrent">—</div><div class="card-sub">시장가 기준</div></div>
+  <div class="card"><div class="card-label">총 손익</div><div class="card-val" id="cPnl">—</div><div class="card-sub">미실현 손익</div></div>
+  <div class="card"><div class="card-label">수익률</div><div class="card-val" id="cRet">—</div><div class="card-sub">전체 포트폴리오</div></div>
+</div>
+
+<!-- Add Form -->
+<div class="add-form">
+  <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">종목 추가</div>
+  <div class="form-row">
+    <div class="fg"><label>종목 코드</label><input id="inTicker" placeholder="AAPL / 005930" /></div>
+    <div class="fg"><label>시장</label>
+      <select id="inMarket">
+        <option value="US">🇺🇸 미국 (USD)</option>
+        <option value="KR">🇰🇷 한국 (KRW)</option>
+      </select>
+    </div>
+    <div class="fg"><label>매수가</label><input id="inPrice" type="number" placeholder="매수 단가" /></div>
+    <div class="fg"><label>수량 (주)</label><input id="inShares" type="number" placeholder="보유 수량" /></div>
+    <button class="btn" id="addBtn" onclick="addHolding()">+ 추가</button>
+  </div>
+  <div class="hint">💡 미국: AAPL · TSLA · NVDA · MSFT &nbsp;|&nbsp; 한국: 005930 (삼성전자) · 035420 (NAVER) · 000660 (SK하이닉스)</div>
+</div>
+
+<!-- Main -->
+<div class="main-grid">
+
+  <!-- Chart -->
+  <div class="chart-card">
+    <div class="sec-hdr">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="sec-title" id="chartTitle">자산 추이</div>
+        <div class="tabs">
+          <button class="tab active" id="tabA" onclick="switchMode('asset')">자산</button>
+          <button class="tab" id="tabR" onclick="switchMode('return')">수익률</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="date" id="dStart" style="font-size:10px;padding:4px 8px;width:120px;">
+        <span style="color:var(--text3);font-size:10px;">—</span>
+        <input type="date" id="dEnd" style="font-size:10px;padding:4px 8px;width:120px;">
+        <button class="btn-sm" onclick="loadChart()">조회</button>
+      </div>
+    </div>
+
+    <!-- Slider Panel -->
+    <div class="slider-panel" id="sliderPanel">
+      <div class="slider-date" id="sliderDate">—</div>
+      <div class="slider-stats" id="sliderStats"></div>
+      <div class="stock-chips" id="sliderChips"></div>
+      <div class="slider-wrap">
+        <input type="range" id="dateSlider" min="0" max="0" value="0" oninput="onSlider(this.value)">
+        <div class="slider-labels"><span id="slMin">—</span><span id="slMax">—</span></div>
+      </div>
+    </div>
+
+    <div id="chartArea"><div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div></div>
+    <canvas id="mainChart" style="display:none;"></canvas>
+  </div>
+
+  <!-- Holdings -->
+  <div class="holdings-card">
+    <div class="sec-hdr">
+      <div class="sec-title">보유 종목</div>
+      <button class="btn-sm" onclick="refreshPrices()"><span id="refIcon">↻</span> 새로고침</button>
+    </div>
+    <div class="holdings-list" id="holdList"><div class="empty" style="padding:40px 10px;">아직 추가된 종목이 없습니다</div></div>
+  </div>
+</div>
+
+<!-- Bottom -->
+<div class="bottom-grid">
+  <div class="chart-card">
+    <div class="sec-hdr"><div class="sec-title">비중 배분</div></div>
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:center;">
+      <div style="width:160px;height:160px;"><canvas id="donut"></canvas></div>
+      <div id="allocList"><div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;">종목 추가 후 표시</div></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="sec-hdr"><div class="sec-title">종목별 손익률</div></div>
+    <div id="barWrap"><div class="empty" style="padding:30px 0;">종목 추가 후 표시</div></div>
+    <canvas id="barChart" style="display:none;max-height:180px;"></canvas>
+  </div>
+</div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="main.js"></script>
 </body>
 </html>
