@@ -16,31 +16,26 @@ const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString('ko-KR',
 
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
-  if (!el) return;
   el.textContent = msg;
   el.className = `toast ${type} show`;
   setTimeout(() => el.className = 'toast', 3500);
 }
 
 function updateClock() {
-  const el = document.getElementById('htime');
-  if (el) {
-    el.textContent = new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  }
+  document.getElementById('htime').textContent =
+    new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 setInterval(updateClock, 1000); updateClock();
 
 (function initDates(){
   const e = new Date(), s = new Date();
   s.setMonth(s.getMonth()-3);
-  const dEnd = document.getElementById('dEnd');
-  const dStart = document.getElementById('dStart');
-  if (dEnd) dEnd.value = e.toISOString().split('T')[0];
-  if (dStart) dStart.value = s.toISOString().split('T')[0];
+  document.getElementById('dEnd').value   = e.toISOString().split('T')[0];
+  document.getElementById('dStart').value = s.toISOString().split('T')[0];
 })();
 
 // ═══════════════════════════════════════
-// AI API CALL (Anthropic Proxy/Placeholder)
+// ANTHROPIC API
 // ═══════════════════════════════════════
 async function callAI(userMsg) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -70,7 +65,6 @@ async function callAI(userMsg) {
   return text;
 }
 
-// 재시도 래퍼 (최대 3회, exponential backoff)
 async function withRetry(fn, retries=3) {
   let lastErr;
   for (let i=0; i<retries; i++) {
@@ -78,7 +72,7 @@ async function withRetry(fn, retries=3) {
     catch(e) {
       lastErr = e;
       if (i < retries-1) {
-        const wait = 1200 * Math.pow(2, i); // 1.2s → 2.4s → 4.8s
+        const wait = 1200 * Math.pow(2, i); 
         console.warn(`[retry ${i+1}/${retries}] ${e.message} — ${wait}ms 후 재시도`);
         await new Promise(r => setTimeout(r, wait));
       }
@@ -87,7 +81,6 @@ async function withRetry(fn, retries=3) {
   throw lastErr;
 }
 
-// JSON 안전 추출
 function safeJSON(raw, type='object') {
   if (!raw) return null;
   let clean = raw
@@ -151,6 +144,7 @@ async function fetchHistory(symbol, start, end) {
   const key = `${symbol}|${start}|${end}`;
   if (historyCache[key]) return historyCache[key];
 
+  const isKR = symbol.endsWith('.KS') || symbol.endsWith('.KQ');
   const endD = new Date(end);
   const stD  = new Date(start);
 
@@ -258,22 +252,18 @@ function renderAll() {
 
 function resetChartIfEmpty() {
   if (!holdings.length) {
-    const el = document.getElementById('chartArea');
-    if (el) el.innerHTML = '<div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div>';
-    const mainChart = document.getElementById('mainChart');
-    if (mainChart) mainChart.style.display = 'none';
-    const sliderPanel = document.getElementById('sliderPanel');
-    if (sliderPanel) sliderPanel.style.display = 'none';
+    document.getElementById('chartArea').innerHTML = '<div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div>';
+    document.getElementById('mainChart').style.display = 'none';
+    document.getElementById('sliderPanel').style.display = 'none';
     historyCache = {};
   }
 }
 
-// ── Summary Cards
 function renderCards() {
   if (!holdings.length) {
     ['cInvested','cCurrent','cPnl','cRet'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) { el.textContent = '—'; el.className = 'card-val'; }
+      el.textContent = '—'; el.className = 'card-val';
     });
     return;
   }
@@ -285,32 +275,26 @@ function renderCards() {
   });
   const hasKR=invKR>0, hasUS=invUS>0;
   if (hasKR && hasUS) {
-    const cInv = document.getElementById('cInvested');
-    if (cInv) cInv.textContent = `₩${fNum(invKR)} / $${fNum(invUS,2)}`;
-    const cCur = document.getElementById('cCurrent');
-    if (cCur) cCur.textContent  = `₩${fNum(curKR)} / $${fNum(curUS,2)}`;
+    document.getElementById('cInvested').textContent = `₩${fNum(invKR)} / $${fNum(invUS,2)}`;
+    document.getElementById('cCurrent').textContent  = `₩${fNum(curKR)} / $${fNum(curUS,2)}`;
     const pnl=(curKR-invKR)+(curUS-invUS)*1350;
     const ret=(pnl/(invKR+invUS*1350))*100;
     const pe=document.getElementById('cPnl'), re=document.getElementById('cRet');
-    if (pe) { pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+'(원환산)'; pe.className='card-val '+(pnl>=0?'up':'down'); }
-    if (re) { re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%';      re.className='card-val '+(ret>=0?'up':'down'); }
+    pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+'(원환산)'; pe.className='card-val '+(pnl>=0?'up':'down');
+    re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%';      re.className='card-val '+(ret>=0?'up':'down');
   } else {
     const isUS=hasUS, inv=isUS?invUS:invKR, cur=isUS?curUS:curKR;
     const pnl=cur-inv, ret=(pnl/inv)*100;
-    const cInv = document.getElementById('cInvested');
-    if (cInv) cInv.textContent = isUS?`$${fNum(inv,2)}`:`₩${fNum(inv)}`;
-    const cCur = document.getElementById('cCurrent');
-    if (cCur) cCur.textContent  = isUS?`$${fNum(cur,2)}`:`₩${fNum(cur)}`;
+    document.getElementById('cInvested').textContent = isUS?`$${fNum(inv,2)}`:`₩${fNum(inv)}`;
+    document.getElementById('cCurrent').textContent  = isUS?`$${fNum(cur,2)}`:`₩${fNum(cur)}`;
     const pe=document.getElementById('cPnl'), re=document.getElementById('cRet');
-    if (pe) { pe.textContent=(pnl>=0?'+':'')+(isUS?`$${fNum(pnl,2)}`:`₩${fNum(pnl)}`); pe.className='card-val '+(pnl>=0?'up':'down'); }
-    if (re) { re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%'; re.className='card-val '+(ret>=0?'up':'down'); }
+    pe.textContent=(pnl>=0?'+':'')+(isUS?`$${fNum(pnl,2)}`:`₩${fNum(pnl)}`); pe.className='card-val '+(pnl>=0?'up':'down');
+    re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%'; re.className='card-val '+(ret>=0?'up':'down');
   }
 }
 
-// ── Holdings List
 function renderHoldings() {
   const el = document.getElementById('holdList');
-  if (!el) return;
   if (!holdings.length) { el.innerHTML='<div class="empty" style="padding:40px 10px;">아직 추가된 종목이 없습니다</div>'; return; }
   el.innerHTML = holdings.map(h => {
     const pnl = h.currentPrice ? (h.currentPrice-h.buyPrice)/h.buyPrice*100 : null;
@@ -334,10 +318,8 @@ function renderHoldings() {
   }).join('');
 }
 
-// ── Donut
 function renderDonut() {
   const canvas=document.getElementById('donut'), list=document.getElementById('allocList');
-  if (!canvas || !list) return;
   if (!holdings.length) {
     list.innerHTML='<div style="color:var(--text3);font-size:11px;font-family:\'Space Mono\',monospace;">종목 추가 후 표시</div>';
     if(donutInst){donutInst.destroy();donutInst=null;} return;
@@ -353,10 +335,8 @@ function renderDonut() {
   }).join('');
 }
 
-// ── Bar
 function renderBar() {
   const canvas=document.getElementById('barChart'), wrap=document.getElementById('barWrap');
-  if (!canvas || !wrap) return;
   if (!holdings.length) {
     canvas.style.display='none'; wrap.style.display='block';
     if(barInst){barInst.destroy();barInst=null;} return;
@@ -374,14 +354,10 @@ function renderBar() {
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
-  const tabA = document.getElementById('tabA');
-  const tabR = document.getElementById('tabR');
-  const chartTitle = document.getElementById('chartTitle');
-  const sliderPanel = document.getElementById('sliderPanel');
-  if (tabA) tabA.classList.toggle('active',mode==='asset');
-  if (tabR) tabR.classList.toggle('active',mode==='return');
-  if (chartTitle) chartTitle.textContent=mode==='asset'?'자산 추이':'수익률 추이';
-  if (mode==='return' && sliderPanel) sliderPanel.style.display='none';
+  document.getElementById('tabA').classList.toggle('active',mode==='asset');
+  document.getElementById('tabR').classList.toggle('active',mode==='return');
+  document.getElementById('chartTitle').textContent=mode==='asset'?'자산 추이':'수익률 추이';
+  if (mode==='return') document.getElementById('sliderPanel').style.display='none';
   if (Object.keys(historyCache).length) drawChart();
 }
 
@@ -391,19 +367,16 @@ async function loadChart() {
   if (!start||!end) { toast('날짜를 선택해주세요','err'); return; }
 
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  if (area) {
-    area.style.display='flex';
-    area.innerHTML='<div class="empty"><span class="spin"></span>히스토리 로딩 중...</div>';
-  }
-  if (canvas) canvas.style.display='none';
-  const sliderPanel = document.getElementById('sliderPanel');
-  if (sliderPanel) sliderPanel.style.display='none';
+  area.style.display='flex';
+  area.innerHTML='<div class="empty"><span class="spin"></span>히스토리 로딩 중...</div>';
+  canvas.style.display='none';
+  document.getElementById('sliderPanel').style.display='none';
   historyCache={};
 
   const errors=[];
   for (let i=0; i<holdings.length; i++) {
     const h=holdings[i], sym=h.symbol.replace('.KS','').replace('.KQ','');
-    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} 조회 중... (${i+1}/${holdings.length})</div>`;
+    area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} 조회 중... (${i+1}/${holdings.length})</div>`;
     try {
       const hist=await fetchHistory(h.symbol,start,end);
       if (!hist.length) { errors.push(sym+': 데이터 없음'); continue; }
@@ -416,7 +389,7 @@ async function loadChart() {
   if (errors.length) toast('⚠️ '+errors.join(' / '),'err');
 
   if (!Object.keys(historyCache).length) {
-    if (area) area.innerHTML=`<div class="empty">데이터를 불러오지 못했습니다<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻ 다시 시도</button></div>`;
+    area.innerHTML=`<div class="empty">데이터를 불러오지 못했습니다<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻ 다시 시도</button></div>`;
     return;
   }
   drawChart();
@@ -428,8 +401,7 @@ function drawChart() {
 
 function drawAssetChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  if (area) area.style.display='none';
-  if (canvas) canvas.style.display='block';
+  area.style.display='none'; canvas.style.display='block';
 
   const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
   const allDates=[...new Set(Object.values(historyCache).flatMap(a=>a.map(d=>d.date)))].sort();
@@ -468,24 +440,17 @@ function drawAssetChart() {
 
   sliderDates=allDates;
   const sl=document.getElementById('dateSlider');
-  if (sl) {
-    sl.max=allDates.length-1; sl.value=allDates.length-1;
-    const slMin = document.getElementById('slMin');
-    const slMax = document.getElementById('slMax');
-    if (slMin) slMin.textContent=allDates[0]||'';
-    if (slMax) slMax.textContent=allDates[allDates.length-1]||'';
-    const sliderPanel = document.getElementById('sliderPanel');
-    if (sliderPanel) sliderPanel.style.display='block';
-    onSlider(allDates.length-1);
-  }
+  sl.max=allDates.length-1; sl.value=allDates.length-1;
+  document.getElementById('slMin').textContent=allDates[0]||'';
+  document.getElementById('slMax').textContent=allDates[allDates.length-1]||'';
+  document.getElementById('sliderPanel').style.display='block';
+  onSlider(allDates.length-1);
 }
 
 function drawReturnChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  if (area) area.style.display='none';
-  if (canvas) canvas.style.display='block';
-  const sliderPanel = document.getElementById('sliderPanel');
-  if (sliderPanel) sliderPanel.style.display='none';
+  area.style.display='none'; canvas.style.display='block';
+  document.getElementById('sliderPanel').style.display='none';
 
   const datasets=Object.keys(historyCache).map((sym,i)=>{
     const hist=historyCache[sym], base=hist[0]?.close;
@@ -497,14 +462,10 @@ function drawReturnChart() {
   chartInst=new Chart(canvas,{type:'line',data:{datasets},options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,position:'top',labels:{color:'#8888aa',font:{family:'Space Mono',size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#1a1a26',borderColor:'#2a2a3e',borderWidth:1,titleColor:'#8888aa',bodyColor:'#e8e8f0',callbacks:{title:c=>c[0]?.raw?.x||'',label:c=>{const s=c.raw.y>=0?'+':'';return ` ${c.dataset.label}: ${s}${c.raw.y.toFixed(2)}%`;}}}},scales:{x:{type:'category',grid:{color:'rgba(42,42,62,.4)'},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},maxTicksLimit:10}},y:{grid:{color:'rgba(42,42,62,.4)'},border:{dash:[4,4]},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
-// ═══════════════════════════════════════
-// SLIDER
-// ═══════════════════════════════════════
 function onSlider(idx) {
   idx=+idx;
   const date=sliderDates[idx]; if(!date)return;
-  const sliderDate = document.getElementById('sliderDate');
-  if (sliderDate) sliderDate.textContent=date;
+  document.getElementById('sliderDate').textContent=date;
 
   const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
   const lastClose={};
@@ -530,24 +491,17 @@ function onSlider(idx) {
   const isUS=holdings.every(x=>x.market==='US'), dec=isUS?2:0, cur=isUS?'$':'₩';
   const s=totalPnl>=0?'+':'';
 
-  const sliderStats = document.getElementById('sliderStats');
-  if (sliderStats) {
-    sliderStats.innerHTML=`
-      <div class="sstat"><div class="sstat-label">평가금액</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">손익</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">수익률</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
-  }
+  document.getElementById('sliderStats').innerHTML=`
+    <div class="sstat"><div class="sstat-label">평가금액</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
+    <div class="sstat"><div class="sstat-label">손익</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
+    <div class="sstat"><div class="sstat-label">수익률</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
 
-  const sliderChips = document.getElementById('sliderChips');
-  if (sliderChips) {
-    sliderChips.innerHTML=chips.map(r=>{
-      const sign=r.pct>=0?'+':'', d=r.h.market==='US'?2:0, c=r.h.market==='US'?'$':'₩';
-      const sym=r.sym.replace('.KS','').replace('.KQ','');
-      return `<div class="chip"><div class="chip-sym">${sym}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
-    }).join('');
-  }
+  document.getElementById('sliderChips').innerHTML=chips.map(r=>{
+    const sign=r.pct>=0?'+':'', d=r.h.market==='US'?2:0, c=r.h.market==='US'?'$':'₩';
+    const sym=r.sym.replace('.KS','').replace('.KQ','');
+    return `<div class="chip"><div class="chip-sym">${sym}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
+  }).join('');
 
-  // Move cursor
   if(chartInst&&chartMode==='asset'){
     const ds=chartInst.data.datasets.find(d=>d._cur);
     if(ds){
@@ -558,13 +512,10 @@ function onSlider(idx) {
   }
 }
 
-// ═══════════════════════════════════════
-// REFRESH PRICES
-// ═══════════════════════════════════════
 async function refreshPrices() {
   if(!holdings.length)return;
   const icon=document.getElementById('refIcon');
-  if (icon) icon.style.animation='sp .7s linear infinite';
+  icon.style.animation='sp .7s linear infinite';
   priceCache={};
   let ok=0;
   for(const h of holdings){
@@ -572,11 +523,10 @@ async function refreshPrices() {
     catch(e){ console.error(e); }
   }
   save(); renderCards(); renderHoldings(); renderDonut(); renderBar();
-  if (icon) icon.style.animation='';
+  icon.style.animation='';
   toast(`✅ ${ok}/${holdings.length}개 종목 업데이트 완료`);
 }
 
-// Expose to window
 window.addHolding = addHolding;
 window.removeHolding = removeHolding;
 window.switchMode = switchMode;
@@ -584,9 +534,6 @@ window.loadChart = loadChart;
 window.onSlider = onSlider;
 window.refreshPrices = refreshPrices;
 
-// ═══════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   renderAll();
   if(holdings.length) refreshPrices();
