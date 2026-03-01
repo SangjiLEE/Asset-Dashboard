@@ -39,7 +39,7 @@ const i18n = {
     toast_input_price: "매수가를 입력하세요",
     toast_input_shares: "수량을 입력하세요",
     toast_fetch_fail: "데이터를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.",
-    toast_loading: "📡 서버 연결 중...",
+    toast_loading: "📡 데이터 조회 중...",
     asset_val: "평가금액",
     pnl_val: "손익",
     return_val: "수익률",
@@ -85,8 +85,8 @@ const i18n = {
     toast_input_ticker: "Enter ticker symbol",
     toast_input_price: "Enter buy price",
     toast_input_shares: "Enter shares quantity",
-    toast_fetch_fail: "Fetch failed — Please try again in a moment.",
-    toast_loading: "📡 Connecting to server...",
+    toast_fetch_fail: "Fetch failed — Please try again.",
+    toast_loading: "📡 Fetching data...",
     asset_val: "Value",
     pnl_val: "P&L",
     return_val: "Return",
@@ -159,15 +159,12 @@ function updateUI() {
   if (chartTitle) {
     chartTitle.textContent = chartMode === 'asset' ? i18n[currentLang].chart_asset : i18n[currentLang].chart_return;
   }
-  
   updateExchangeRateDisplay();
 }
 
 function updateExchangeRateDisplay() {
   const el = document.getElementById('exRateDisplay');
-  if (el) {
-    el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
-  }
+  if (el) el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
 }
 
 window.changeLang = changeLang;
@@ -188,9 +185,7 @@ function toast(msg, type='ok') {
 
 function updateClock() {
   const el = document.getElementById('htime');
-  if (el) {
-    el.textContent = new Date().toLocaleString(currentLang === 'ko' ? 'ko-KR' : 'en-US',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  }
+  if (el) el.textContent = new Date().toLocaleString(currentLang === 'ko' ? 'ko-KR' : 'en-US',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 setInterval(updateClock, 1000); updateClock();
 
@@ -204,77 +199,78 @@ setInterval(updateClock, 1000); updateClock();
 })();
 
 // ═══════════════════════════════════════
-// ADVANCED SMART FETCHING ENGINE
+// ULTRA-ROBUST SMART FETCHING ENGINE
 // ═══════════════════════════════════════
-async function smartFetch(url) {
-  const proxies = [
-    { url: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`, parser: (r) => r.json() },
-    { url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, parser: async (r) => { const j = await r.json(); return JSON.parse(j.contents); } },
-    { url: (u) => `https://thingproxy.freeboard.io/fetch/${u}`, parser: (r) => r.json() }
+async function fetchWithProxy(url) {
+  // Different proxy types for maximum compatibility
+  const proxyConfigs = [
+    { name: 'CORS.IO', url: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`, parser: (r) => r.json() },
+    { name: 'ALLORIGINS', url: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, parser: (r) => r.json() },
+    { name: 'CLOUDFLARE', url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, parser: async (r) => { const j = await r.json(); return JSON.parse(j.contents); } }
   ];
 
-  let lastError = null;
-  for (const proxy of proxies) {
+  for (const proxy of proxyConfigs) {
     try {
+      console.log(`[Fetch] Trying via ${proxy.name}...`);
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 8000); // 8초 타임아웃
+      const id = setTimeout(() => controller.abort(), 6000); // 6s timeout
       const response = await fetch(proxy.url(url), { signal: controller.signal });
       clearTimeout(id);
       
       if (!response.ok) continue;
       const data = await proxy.parser(response);
-      if (data && (data.chart || data.quoteResponse)) return data;
+      // Validate data structure
+      if (data && (data.chart || data.quoteResponse || data.spark)) return data;
     } catch (e) {
-      console.warn(`Proxy failed:`, e.message);
-      lastError = e;
+      console.warn(`[Fetch] ${proxy.name} failed:`, e.message);
     }
   }
-  throw lastError || new Error("Failed to fetch from all sources");
+  throw new Error("Connectivity Issue: All proxy channels are unavailable.");
 }
 
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
-  // Use multiple subdomains for higher availability
-  const subdomains = ['query1', 'query2'];
-  let lastError = null;
-
-  for (const sub of subdomains) {
-    let url = "";
-    if (type === 'price') {
-      url = `https://${sub}.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-    } else {
-      const p1 = Math.floor(new Date(start).getTime() / 1000);
-      const p2 = Math.floor(new Date(end).getTime() / 1000);
-      url = `https://${sub}.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
-    }
-
-    try {
-      const data = await smartFetch(url);
-      const result = data.chart?.result?.[0];
-      if (!result) continue;
-
-      if (type === 'price') {
-        const meta = result.meta;
-        return {
-          price: meta.regularMarketPrice,
-          prevClose: meta.previousClose || meta.chartPreviousClose,
-          name: symbol.split('.')[0], 
-          currency: meta.currency,
-          symbol: symbol
-        };
-      } else {
-        if (!result.timestamp) return [];
-        const timestamps = result.timestamp;
-        const quotes = result.indicators.quote[0].close;
-        return timestamps.map((ts, i) => ({
-          date: new Date(ts * 1000).toISOString().split('T')[0],
-          close: quotes[i]
-        })).filter(d => d.close != null);
-      }
-    } catch (e) {
-      lastError = e;
-    }
+  let url = "";
+  if (type === 'price') {
+    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+  } else {
+    const p1 = Math.floor(new Date(start).getTime() / 1000);
+    const p2 = Math.floor(new Date(end).getTime() / 1000);
+    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
   }
-  throw lastError;
+
+  const data = await fetchWithProxy(url);
+  const result = data.chart?.result?.[0];
+  if (!result) throw new Error("Invalid Stock Code");
+
+  if (type === 'price') {
+    const meta = result.meta;
+    return {
+      price: meta.regularMarketPrice,
+      prevClose: meta.previousClose || meta.chartPreviousClose,
+      name: symbol.split('.')[0], 
+      currency: meta.currency,
+      symbol: symbol
+    };
+  } else {
+    if (!result.timestamp) return [];
+    const timestamps = result.timestamp;
+    const quotes = result.indicators.quote[0].close;
+    return timestamps.map((ts, i) => ({
+      date: new Date(ts * 1000).toISOString().split('T')[0],
+      close: quotes[i]
+    })).filter(d => d.close != null);
+  }
+}
+
+async function fetchStockName(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
+    const data = await fetchWithProxy(url);
+    const quote = data.quotes?.[0];
+    return quote ? (quote.longname || quote.shortname || symbol) : symbol;
+  } catch (e) {
+    return symbol;
+  }
 }
 
 async function updateUsdKrwRate() {
@@ -291,13 +287,11 @@ async function updateUsdKrwRate() {
 async function fetchPrice(symbol) {
   if (priceCache[symbol] && Date.now()-priceCache[symbol].ts < 60000)
     return priceCache[symbol].data;
-  try {
-    const r = await fetchFromYahoo(symbol, 'price');
-    priceCache[symbol] = { data: r, ts: Date.now() };
-    return r;
-  } catch (error) { 
-    throw new Error(i18n[currentLang].toast_fetch_fail); 
-  }
+  
+  const r = await fetchFromYahoo(symbol, 'price');
+  r.name = await fetchStockName(symbol); // 안정적으로 이름 따로 조회
+  priceCache[symbol] = { data: r, ts: Date.now() };
+  return r;
 }
 
 async function fetchHistory(symbol, start, end) {
@@ -323,13 +317,13 @@ async function addHolding() {
   if (!bpRaw || +bpRaw<=0) { toast(i18n[currentLang].toast_input_price,'err'); return; }
   if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
   
-  // Auto-append suffix for KR stocks
   if (currency==='KRW' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
   btn.innerHTML = `<span class="spin"></span>${i18n[currentLang].fetching_stock}`;
-  
+  toast(i18n[currentLang].toast_loading);
+
   try {
     const info = await fetchPrice(ticker);
     holdings.push({
@@ -360,7 +354,7 @@ function removeHolding(id) {
 function save() { localStorage.setItem('ph2_holdings', JSON.stringify(holdings)); }
 
 // ═══════════════════════════════════════
-// RENDER & CONVERSION
+// CONVERSION & RENDER
 // ═══════════════════════════════════════
 function convert(val, from) {
   if (from === displayCurrency) return val;
@@ -393,13 +387,11 @@ function renderCards() {
     });
     return;
   }
-  
   let totalInv = 0, totalCur = 0;
   holdings.forEach(h => {
     totalInv += convert(h.buyPrice * h.shares, h.currency);
     totalCur += convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
   });
-
   const pnl = totalCur - totalInv;
   const ret = totalInv > 0 ? (pnl / totalInv) * 100 : 0;
   const sym = displayCurrency === 'KRW' ? '₩' : '$';
@@ -453,18 +445,15 @@ function renderDonut() {
     list.innerHTML=`<div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;">${i18n[currentLang].empty_after_add}</div>`;
     if(donutInst){donutInst.destroy();donutInst=null;} return;
   }
-  
   const vals = holdings.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
   const total = vals.reduce((a,b)=>a+b,0);
   const labels = holdings.map(h=>h.symbol.split('.')[0]);
-  
   if(donutInst)donutInst.destroy();
   donutInst = new Chart(canvas, {
     type:'doughnut',
     data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,holdings.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+(ctx.raw/total*100).toFixed(1)+'%'}}}}
   });
-  
   list.innerHTML=holdings.map((h,i)=>{
     const pct=(vals[i]/total*100).toFixed(1);
     return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${h.symbol.split('.')[0]}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
@@ -664,7 +653,7 @@ async function refreshPrices() {
   await updateUsdKrwRate();
   let ok=0;
   for(const h of holdings){
-    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; ok++; }
+    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; h.name=info.name; ok++; }
     catch(e){ console.error(e); }
   }
   save(); renderAll();
