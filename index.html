@@ -14,6 +14,7 @@
 <header>
   <div class="logo" id="logo">포트폴리오 <span>대시보드</span></div>
   <div style="display:flex;align-items:center;gap:12px;">
+    <div id="exRateDisplay" style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); background:rgba(0,212,170,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(0,212,170,0.2);"></div>
     <div class="lang-switch">
       <button class="lang-btn active" id="lang-ko" onclick="changeLang('ko')">KO</button>
       <button class="lang-btn" id="lang-en" onclick="changeLang('en')">EN</button>
@@ -36,10 +37,10 @@
   <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;" data-i18n="add_title">종목 추가</div>
   <div class="form-row">
     <div class="fg"><label data-i18n="label_ticker">종목 코드</label><input id="inTicker" placeholder="AAPL / 005930" /></div>
-    <div class="fg"><label data-i18n="label_market">시장</label>
-      <select id="inMarket">
-        <option value="US" data-i18n="opt_us">🇺🇸 미국 (USD)</option>
-        <option value="KR" data-i18n="opt_kr">🇰🇷 한국 (KRW)</option>
+    <div class="fg"><label data-i18n="label_currency">통화</label>
+      <select id="inCurrency">
+        <option value="USD" data-i18n="opt_usd">🇺🇸 달러 (USD)</option>
+        <option value="KRW" data-i18n="opt_krw">🇰🇷 원화 (KRW)</option>
       </select>
     </div>
     <div class="fg"><label data-i18n="label_price">매수가</label><input id="inPrice" type="number" placeholder="Price" /></div>
