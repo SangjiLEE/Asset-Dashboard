@@ -42,14 +42,15 @@ setInterval(updateClock, 1000); updateClock();
 // ═══════════════════════════════════════
 // FREE DATA FETCHING (Using CORS Proxy)
 // ═══════════════════════════════════════
-// 무료 CORS 프록시를 사용하여 Yahoo Finance 데이터를 직접 가져옵니다.
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
   const proxy = "https://api.allorigins.win/raw?url=";
   let url = "";
   
   if (type === 'price') {
-    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    // Quote API는 상세 종목 정보를 제공합니다 (이름 포함)
+    url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
   } else {
+    // Chart API는 히스토리 데이터에 적합합니다
     const period1 = Math.floor(new Date(start).getTime() / 1000);
     const period2 = Math.floor(new Date(end).getTime() / 1000);
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
@@ -59,20 +60,23 @@ async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
     const response = await fetch(proxy + encodeURIComponent(url));
     if (!response.ok) throw new Error('Network response was not ok');
     const data = await response.json();
-    const result = data.chart.result[0];
     
     if (type === 'price') {
-      const meta = result.meta;
+      const result = data.quoteResponse.result[0];
+      if (!result) throw new Error('Symbol not found');
       return {
-        price: meta.regularMarketPrice,
-        prevClose: meta.previousClose,
-        name: symbol.split('.')[0], // 야후 API 메타데이터에는 이름이 없을 수 있어 심볼로 대체
-        currency: meta.currency,
+        price: result.regularMarketPrice,
+        prevClose: result.regularMarketPreviousClose,
+        name: result.longName || result.shortName || symbol,
+        currency: result.currency,
         symbol: symbol
       };
     } else {
+      const result = data.chart.result[0];
+      if (!result) return [];
       const timestamps = result.timestamp;
       const quotes = result.indicators.quote[0].close;
+      if (!timestamps) return [];
       return timestamps.map((ts, i) => ({
         date: new Date(ts * 1000).toISOString().split('T')[0],
         close: quotes[i]
@@ -139,7 +143,7 @@ async function addHolding() {
       currentPrice: info.price, prevClose: info.prevClose,
     });
     save(); renderAll();
-    toast(`✅ 추가 완료!`);
+    toast(`✅ ${info.name} 추가 완료!`);
     document.getElementById('inTicker').value  = '';
     document.getElementById('inPrice').value   = '';
     document.getElementById('inShares').value  = '';
@@ -228,11 +232,13 @@ function renderHoldings() {
     const isUS= h.market==='US';
     const badge= isUS?'<span class="badge badge-us">US</span>':'<span class="badge badge-kr">KR</span>';
     return `<div class="h-item">
-      <div>
-        <div class="h-ticker">${sym}${badge}</div>
+      <div style="flex:1; overflow:hidden;">
+        <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">
+          ${sym}${badge}
+        </div>
+        <div class="h-name" title="${h.name}">${h.name}</div>
         <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}주@${isUS?'$':'₩'}${fNum(h.buyPrice,isUS?2:0)}</div>
       </div>
-      <div class="h-name">${h.name}</div>
       <div class="h-right">
         <div class="h-price ${cls}">${h.currentPrice?(isUS?'$':'₩')+fNum(h.currentPrice,isUS?2:0):'—'}</div>
         <div class="h-pct ${cls}">${pnl!=null?sign+pnl.toFixed(2)+'%':'—'}</div>
@@ -357,7 +363,7 @@ function drawAssetChart() {
     type:'line',
     data:{datasets:[
       {label:'평가금액',data:allDates.map((d,i)=>({x:d,y:assets[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
-      {label:'투자원금',data:allDates.map(d=>({x:d,y:totalInv})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
+      {label:'투자원금',data:allDates.map(d=>({x:d.y,y:totalInv})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
       {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInv*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
     ]},
     options:{
@@ -465,7 +471,7 @@ async function refreshPrices() {
   priceCache={};
   let ok=0;
   for(const h of holdings){
-    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; ok++; }
+    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; h.name=info.name; ok++; }
     catch(e){ console.error(e); }
   }
   save(); renderCards(); renderHoldings(); renderDonut(); renderBar();
