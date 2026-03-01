@@ -16,182 +16,98 @@ const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString('ko-KR',
 
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
+  if (!el) return;
   el.textContent = msg;
   el.className = `toast ${type} show`;
   setTimeout(() => el.className = 'toast', 3500);
 }
 
 function updateClock() {
-  document.getElementById('htime').textContent =
-    new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el = document.getElementById('htime');
+  if (el) {
+    el.textContent = new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
 }
 setInterval(updateClock, 1000); updateClock();
 
 (function initDates(){
   const e = new Date(), s = new Date();
   s.setMonth(s.getMonth()-3);
-  document.getElementById('dEnd').value   = e.toISOString().split('T')[0];
-  document.getElementById('dStart').value = s.toISOString().split('T')[0];
+  const dEnd = document.getElementById('dEnd');
+  const dStart = document.getElementById('dStart');
+  if (dEnd) dEnd.value = e.toISOString().split('T')[0];
+  if (dStart) dStart.value = s.toISOString().split('T')[0];
 })();
 
 // ═══════════════════════════════════════
-// ANTHROPIC API
+// FREE DATA FETCHING (Using CORS Proxy)
 // ═══════════════════════════════════════
-async function callAI(userMsg) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model:      'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      tools:      [{ type: 'web_search_20250305', name: 'web_search' }],
-      system:     'You are a financial data API. Always respond with ONLY raw JSON. No markdown, no explanation, no code fences. No text before or after the JSON.',
-      messages:   [{ role: 'user', content: userMsg }],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(()=>({}));
-    throw new Error('API 오류 ' + res.status + ': ' + (err?.error?.message || res.statusText));
-  }
-
-  const data = await res.json();
-  const text = (data.content||[])
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('')
-    .trim();
-  console.log('[AI response]', text.slice(0,200));
-  return text;
-}
-
-async function withRetry(fn, retries=3) {
-  let lastErr;
-  for (let i=0; i<retries; i++) {
-    try { return await fn(); }
-    catch(e) {
-      lastErr = e;
-      if (i < retries-1) {
-        const wait = 1200 * Math.pow(2, i); 
-        console.warn(`[retry ${i+1}/${retries}] ${e.message} — ${wait}ms 후 재시도`);
-        await new Promise(r => setTimeout(r, wait));
-      }
-    }
-  }
-  throw lastErr;
-}
-
-function safeJSON(raw, type='object') {
-  if (!raw) return null;
-  let clean = raw
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/gi, '')
-    .replace(/^[^[{]*/s, s => s.includes('[') || s.includes('{') ? s : '')
-    .trim();
-  if (type === 'array') {
-    const s = clean.indexOf('['), e = clean.lastIndexOf(']');
-    if (s !== -1 && e > s) {
-      try { return JSON.parse(clean.slice(s, e+1)); } catch {}
-    }
-    const rows = clean.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('{'));
-    const out = [];
-    for (const r of rows) { try { out.push(JSON.parse(r.replace(/,$/,''))); } catch {} }
-    return out.length ? out : null;
+// 무료 CORS 프록시를 사용하여 Yahoo Finance 데이터를 직접 가져옵니다.
+async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
+  const proxy = "https://api.allorigins.win/raw?url=";
+  let url = "";
+  
+  if (type === 'price') {
+    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
   } else {
-    const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-    if (s !== -1 && e > s) {
-      try { return JSON.parse(clean.slice(s, e+1)); } catch {}
+    const period1 = Math.floor(new Date(start).getTime() / 1000);
+    const period2 = Math.floor(new Date(end).getTime() / 1000);
+    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
+  }
+
+  try {
+    const response = await fetch(proxy + encodeURIComponent(url));
+    if (!response.ok) throw new Error('Network response was not ok');
+    const data = await response.json();
+    const result = data.chart.result[0];
+    
+    if (type === 'price') {
+      const meta = result.meta;
+      return {
+        price: meta.regularMarketPrice,
+        prevClose: meta.previousClose,
+        name: symbol.split('.')[0], // 야후 API 메타데이터에는 이름이 없을 수 있어 심볼로 대체
+        currency: meta.currency,
+        symbol: symbol
+      };
+    } else {
+      const timestamps = result.timestamp;
+      const quotes = result.indicators.quote[0].close;
+      return timestamps.map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().split('T')[0],
+        close: quotes[i]
+      })).filter(d => d.close != null);
     }
-    return null;
+  } catch (error) {
+    console.error("Yahoo Fetch Error:", error);
+    throw error;
   }
 }
 
-// ═══════════════════════════════════════
-// STOCK DATA FETCHING
-// ═══════════════════════════════════════
 async function fetchPrice(symbol) {
   if (priceCache[symbol] && Date.now()-priceCache[symbol].ts < 60000)
     return priceCache[symbol].data;
 
-  const isKR = symbol.endsWith('.KS') || symbol.endsWith('.KQ');
-  const cur  = isKR ? 'KRW' : 'USD';
-
-  const raw = await withRetry(() => callAI(
-    `Use web_search to find the current stock price of ticker "${symbol}".
-
-CRITICAL: Your entire response must be ONLY this JSON object. Start with { and end with }. No markdown, no explanation.
-
-{"price":0,"prevClose":0,"name":"","currency":"${cur}"}
-
-price = current market price as plain number
-prevClose = previous day close as plain number  
-name = company name${isKR?' in Korean':''}
-currency = "${cur}"
-
-DO NOT use markdown code fences. Output raw JSON only.`
-  ));
-
-  const r = safeJSON(raw, 'object');
-  if (!r || typeof r.price !== 'number' || r.price <= 0)
-    throw new Error(`"${symbol}" 가격 파싱 실패 — 종목 코드를 확인하세요`);
-
-  r.symbol = symbol;
-  priceCache[symbol] = { data: r, ts: Date.now() };
-  return r;
+  try {
+    const r = await fetchFromYahoo(symbol, 'price');
+    priceCache[symbol] = { data: r, ts: Date.now() };
+    return r;
+  } catch (error) {
+    throw new Error(`"${symbol}" 가격 조회 실패 — 종목 코드를 확인하세요`);
+  }
 }
 
 async function fetchHistory(symbol, start, end) {
   const key = `${symbol}|${start}|${end}`;
   if (historyCache[key]) return historyCache[key];
 
-  const isKR = symbol.endsWith('.KS') || symbol.endsWith('.KQ');
-  const endD = new Date(end);
-  const stD  = new Date(start);
-
-  const months = [];
-  let cur = new Date(stD.getFullYear(), stD.getMonth(), 1);
-  while (cur <= endD) {
-    const ms = cur.toISOString().split('T')[0];
-    const nextMonth = new Date(cur.getFullYear(), cur.getMonth()+1, 0); 
-    const me = nextMonth > endD ? end : nextMonth.toISOString().split('T')[0];
-    months.push({ ms, me });
-    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
-    if (months.length >= 3) break; 
+  try {
+    const arr = await fetchFromYahoo(symbol, 'history', start, end);
+    historyCache[key] = arr;
+    return arr;
+  } catch (error) {
+    return [];
   }
-
-  const allData = [];
-
-  for (const { ms, me } of months) {
-    const prompt = `Search for ${symbol} stock closing prices for each trading day from ${ms} to ${me}.
-Output ONLY a JSON array like this (NO other text, NO markdown):
-[{"date":"${ms}","close":100.00},{"date":"...","close":...}]
-Every trading day. date=YYYY-MM-DD, close=number.`;
-
-    try {
-      const raw = await withRetry(() => callAI(prompt), 2);
-      const arr = safeJSON(raw, 'array');
-      if (arr && arr.length > 0) {
-        arr.forEach(d => {
-          if (d?.date && d?.close != null && !isNaN(+d.close)) {
-            allData.push({ date: d.date, close: +d.close });
-          }
-        });
-      } else {
-        console.warn(`[history] ${symbol} ${ms}~${me}: 빈 응답`);
-      }
-    } catch(e) {
-      console.warn(`[history] ${symbol} ${ms}~${me} 실패:`, e.message);
-    }
-  }
-
-  if (allData.length === 0) return [];
-
-  const result = allData
-    .filter((d,i,arr) => arr.findIndex(x=>x.date===d.date)===i) 
-    .sort((a,b) => a.date.localeCompare(b.date));
-
-  historyCache[key] = result;
-  return result;
 }
 
 // ═══════════════════════════════════════
@@ -206,12 +122,13 @@ async function addHolding() {
   if (!ticker)              { toast('종목 코드를 입력하세요','err'); return; }
   if (!bpRaw || +bpRaw<=0) { toast('매수가를 입력하세요','err'); return; }
   if (!shRaw || +shRaw<=0) { toast('수량을 입력하세요','err'); return; }
+  
   if (mkt==='KR' && !ticker.includes('.')) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>조회 중...';
-  toast('📡 주가 조회 중... (최대 45초)');
+  toast('📡 데이터 조회 중...');
 
   try {
     const info = await fetchPrice(ticker);
@@ -222,12 +139,11 @@ async function addHolding() {
       currentPrice: info.price, prevClose: info.prevClose,
     });
     save(); renderAll();
-    toast(`✅ ${info.name} 추가 완료!`);
+    toast(`✅ 추가 완료!`);
     document.getElementById('inTicker').value  = '';
     document.getElementById('inPrice').value   = '';
     document.getElementById('inShares').value  = '';
   } catch(e) {
-    console.error('[addHolding]', e);
     toast('❌ ' + e.message, 'err');
   } finally {
     btn.disabled = false;
@@ -252,9 +168,12 @@ function renderAll() {
 
 function resetChartIfEmpty() {
   if (!holdings.length) {
-    document.getElementById('chartArea').innerHTML = '<div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div>';
-    document.getElementById('mainChart').style.display = 'none';
-    document.getElementById('sliderPanel').style.display = 'none';
+    const el = document.getElementById('chartArea');
+    if (el) el.innerHTML = '<div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div>';
+    const mainChart = document.getElementById('mainChart');
+    if (mainChart) mainChart.style.display = 'none';
+    const sliderPanel = document.getElementById('sliderPanel');
+    if (sliderPanel) sliderPanel.style.display = 'none';
     historyCache = {};
   }
 }
@@ -263,7 +182,7 @@ function renderCards() {
   if (!holdings.length) {
     ['cInvested','cCurrent','cPnl','cRet'].forEach(id => {
       const el = document.getElementById(id);
-      el.textContent = '—'; el.className = 'card-val';
+      if (el) { el.textContent = '—'; el.className = 'card-val'; }
     });
     return;
   }
@@ -275,26 +194,31 @@ function renderCards() {
   });
   const hasKR=invKR>0, hasUS=invUS>0;
   if (hasKR && hasUS) {
-    document.getElementById('cInvested').textContent = `₩${fNum(invKR)} / $${fNum(invUS,2)}`;
-    document.getElementById('cCurrent').textContent  = `₩${fNum(curKR)} / $${fNum(curUS,2)}`;
+    const cInv = document.getElementById('cInvested');
+    if (cInv) cInv.textContent = `₩${fNum(invKR)} / $${fNum(invUS,2)}`;
+    const cCur = document.getElementById('cCurrent');
+    if (cCur) cCur.textContent  = `₩${fNum(curKR)} / $${fNum(curUS,2)}`;
     const pnl=(curKR-invKR)+(curUS-invUS)*1350;
     const ret=(pnl/(invKR+invUS*1350))*100;
     const pe=document.getElementById('cPnl'), re=document.getElementById('cRet');
-    pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+'(원환산)'; pe.className='card-val '+(pnl>=0?'up':'down');
-    re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%';      re.className='card-val '+(ret>=0?'up':'down');
+    if (pe) { pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+'(원환산)'; pe.className='card-val '+(pnl>=0?'up':'down'); }
+    if (re) { re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%';      re.className='card-val '+(ret>=0?'up':'down'); }
   } else {
     const isUS=hasUS, inv=isUS?invUS:invKR, cur=isUS?curUS:curKR;
     const pnl=cur-inv, ret=(pnl/inv)*100;
-    document.getElementById('cInvested').textContent = isUS?`$${fNum(inv,2)}`:`₩${fNum(inv)}`;
-    document.getElementById('cCurrent').textContent  = isUS?`$${fNum(cur,2)}`:`₩${fNum(cur)}`;
+    const cInv = document.getElementById('cInvested');
+    if (cInv) cInv.textContent = isUS?`$${fNum(inv,2)}`:`₩${fNum(inv)}`;
+    const cCur = document.getElementById('cCurrent');
+    if (cCur) cCur.textContent  = isUS?`$${fNum(cur,2)}`:`₩${fNum(cur)}`;
     const pe=document.getElementById('cPnl'), re=document.getElementById('cRet');
-    pe.textContent=(pnl>=0?'+':'')+(isUS?`$${fNum(pnl,2)}`:`₩${fNum(pnl)}`); pe.className='card-val '+(pnl>=0?'up':'down');
-    re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%'; re.className='card-val '+(ret>=0?'up':'down');
+    if (pe) { pe.textContent=(pnl>=0?'+':'')+(isUS?`$${fNum(pnl,2)}`:`₩${fNum(pnl)}`); pe.className='card-val '+(pnl>=0?'up':'down'); }
+    if (re) { re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%'; re.className='card-val '+(ret>=0?'up':'down'); }
   }
 }
 
 function renderHoldings() {
   const el = document.getElementById('holdList');
+  if (!el) return;
   if (!holdings.length) { el.innerHTML='<div class="empty" style="padding:40px 10px;">아직 추가된 종목이 없습니다</div>'; return; }
   el.innerHTML = holdings.map(h => {
     const pnl = h.currentPrice ? (h.currentPrice-h.buyPrice)/h.buyPrice*100 : null;
@@ -320,6 +244,7 @@ function renderHoldings() {
 
 function renderDonut() {
   const canvas=document.getElementById('donut'), list=document.getElementById('allocList');
+  if (!canvas || !list) return;
   if (!holdings.length) {
     list.innerHTML='<div style="color:var(--text3);font-size:11px;font-family:\'Space Mono\',monospace;">종목 추가 후 표시</div>';
     if(donutInst){donutInst.destroy();donutInst=null;} return;
@@ -337,6 +262,7 @@ function renderDonut() {
 
 function renderBar() {
   const canvas=document.getElementById('barChart'), wrap=document.getElementById('barWrap');
+  if (!canvas || !wrap) return;
   if (!holdings.length) {
     canvas.style.display='none'; wrap.style.display='block';
     if(barInst){barInst.destroy();barInst=null;} return;
@@ -354,10 +280,14 @@ function renderBar() {
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
-  document.getElementById('tabA').classList.toggle('active',mode==='asset');
-  document.getElementById('tabR').classList.toggle('active',mode==='return');
-  document.getElementById('chartTitle').textContent=mode==='asset'?'자산 추이':'수익률 추이';
-  if (mode==='return') document.getElementById('sliderPanel').style.display='none';
+  const tabA = document.getElementById('tabA');
+  const tabR = document.getElementById('tabR');
+  const chartTitle = document.getElementById('chartTitle');
+  const sliderPanel = document.getElementById('sliderPanel');
+  if (tabA) tabA.classList.toggle('active',mode==='asset');
+  if (tabR) tabR.classList.toggle('active',mode==='return');
+  if (chartTitle) chartTitle.textContent=mode==='asset'?'자산 추이':'수익률 추이';
+  if (mode==='return' && sliderPanel) sliderPanel.style.display='none';
   if (Object.keys(historyCache).length) drawChart();
 }
 
@@ -367,29 +297,30 @@ async function loadChart() {
   if (!start||!end) { toast('날짜를 선택해주세요','err'); return; }
 
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  area.style.display='flex';
-  area.innerHTML='<div class="empty"><span class="spin"></span>히스토리 로딩 중...</div>';
-  canvas.style.display='none';
-  document.getElementById('sliderPanel').style.display='none';
+  if (area) {
+    area.style.display='flex';
+    area.innerHTML='<div class="empty"><span class="spin"></span>히스토리 로딩 중...</div>';
+  }
+  if (canvas) canvas.style.display='none';
+  const sliderPanel = document.getElementById('sliderPanel');
+  if (sliderPanel) sliderPanel.style.display='none';
   historyCache={};
 
-  const errors=[];
   for (let i=0; i<holdings.length; i++) {
     const h=holdings[i], sym=h.symbol.replace('.KS','').replace('.KQ','');
-    area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} 조회 중... (${i+1}/${holdings.length})</div>`;
+    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} 조회 중... (${i+1}/${holdings.length})</div>`;
     try {
-      const hist=await fetchHistory(h.symbol,start,end);
-      if (!hist.length) { errors.push(sym+': 데이터 없음'); continue; }
-      historyCache[h.symbol]=hist;
+      const hist = await fetchHistory(h.symbol, start, end);
+      if (hist && hist.length > 0) {
+        historyCache[h.symbol] = hist;
+      }
     } catch(e) {
-      console.error(e); errors.push(sym+': '+e.message.slice(0,50));
+      console.error(e);
     }
   }
 
-  if (errors.length) toast('⚠️ '+errors.join(' / '),'err');
-
   if (!Object.keys(historyCache).length) {
-    area.innerHTML=`<div class="empty">데이터를 불러오지 못했습니다<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻ 다시 시도</button></div>`;
+    if (area) area.innerHTML=`<div class="empty">데이터를 불러오지 못했습니다<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻ 다시 시도</button></div>`;
     return;
   }
   drawChart();
@@ -401,7 +332,8 @@ function drawChart() {
 
 function drawAssetChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  area.style.display='none'; canvas.style.display='block';
+  if (area) area.style.display='none';
+  if (canvas) canvas.style.display='block';
 
   const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
   const allDates=[...new Set(Object.values(historyCache).flatMap(a=>a.map(d=>d.date)))].sort();
@@ -440,17 +372,24 @@ function drawAssetChart() {
 
   sliderDates=allDates;
   const sl=document.getElementById('dateSlider');
-  sl.max=allDates.length-1; sl.value=allDates.length-1;
-  document.getElementById('slMin').textContent=allDates[0]||'';
-  document.getElementById('slMax').textContent=allDates[allDates.length-1]||'';
-  document.getElementById('sliderPanel').style.display='block';
-  onSlider(allDates.length-1);
+  if (sl) {
+    sl.max=allDates.length-1; sl.value=allDates.length-1;
+    const slMin = document.getElementById('slMin');
+    const slMax = document.getElementById('slMax');
+    if (slMin) slMin.textContent=allDates[0]||'';
+    if (slMax) slMax.textContent=allDates[allDates.length-1]||'';
+    const sliderPanel = document.getElementById('sliderPanel');
+    if (sliderPanel) sliderPanel.style.display='block';
+    onSlider(allDates.length-1);
+  }
 }
 
 function drawReturnChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  area.style.display='none'; canvas.style.display='block';
-  document.getElementById('sliderPanel').style.display='none';
+  if (area) area.style.display='none';
+  if (canvas) canvas.style.display='block';
+  const sliderPanel = document.getElementById('sliderPanel');
+  if (sliderPanel) sliderPanel.style.display='none';
 
   const datasets=Object.keys(historyCache).map((sym,i)=>{
     const hist=historyCache[sym], base=hist[0]?.close;
@@ -465,7 +404,8 @@ function drawReturnChart() {
 function onSlider(idx) {
   idx=+idx;
   const date=sliderDates[idx]; if(!date)return;
-  document.getElementById('sliderDate').textContent=date;
+  const sliderDate = document.getElementById('sliderDate');
+  if (sliderDate) sliderDate.textContent=date;
 
   const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
   const lastClose={};
@@ -491,16 +431,22 @@ function onSlider(idx) {
   const isUS=holdings.every(x=>x.market==='US'), dec=isUS?2:0, cur=isUS?'$':'₩';
   const s=totalPnl>=0?'+':'';
 
-  document.getElementById('sliderStats').innerHTML=`
-    <div class="sstat"><div class="sstat-label">평가금액</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
-    <div class="sstat"><div class="sstat-label">손익</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
-    <div class="sstat"><div class="sstat-label">수익률</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
+  const sliderStats = document.getElementById('sliderStats');
+  if (sliderStats) {
+    sliderStats.innerHTML=`
+      <div class="sstat"><div class="sstat-label">평가금액</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">손익</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">수익률</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
+  }
 
-  document.getElementById('sliderChips').innerHTML=chips.map(r=>{
-    const sign=r.pct>=0?'+':'', d=r.h.market==='US'?2:0, c=r.h.market==='US'?'$':'₩';
-    const sym=r.sym.replace('.KS','').replace('.KQ','');
-    return `<div class="chip"><div class="chip-sym">${sym}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
-  }).join('');
+  const sliderChips = document.getElementById('sliderChips');
+  if (sliderChips) {
+    sliderChips.innerHTML=chips.map(r=>{
+      const sign=r.pct>=0?'+':'', d=r.h.market==='US'?2:0, c=r.h.market==='US'?'$':'₩';
+      const sym=r.sym.replace('.KS','').replace('.KQ','');
+      return `<div class="chip"><div class="chip-sym">${sym}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
+    }).join('');
+  }
 
   if(chartInst&&chartMode==='asset'){
     const ds=chartInst.data.datasets.find(d=>d._cur);
@@ -515,7 +461,7 @@ function onSlider(idx) {
 async function refreshPrices() {
   if(!holdings.length)return;
   const icon=document.getElementById('refIcon');
-  icon.style.animation='sp .7s linear infinite';
+  if (icon) icon.style.animation='sp .7s linear infinite';
   priceCache={};
   let ok=0;
   for(const h of holdings){
@@ -523,8 +469,8 @@ async function refreshPrices() {
     catch(e){ console.error(e); }
   }
   save(); renderCards(); renderHoldings(); renderDonut(); renderBar();
-  icon.style.animation='';
-  toast(`✅ ${ok}/${holdings.length}개 종목 업데이트 완료`);
+  if (icon) icon.style.animation='';
+  toast(`✅ 업데이트 완료`);
 }
 
 window.addHolding = addHolding;
