@@ -16,6 +16,11 @@
   <div style="display:flex;align-items:center;gap:12px;">
     <div id="exRateDisplay" style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); background:rgba(0,212,170,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(0,212,170,0.2);"></div>
     <div class="lang-switch">
+      <div style="font-size:9px; color:var(--text3); margin-right:4px; align-self:center;" data-i18n="display_currency">표시 통화</div>
+      <button class="lang-btn active" id="cur-krw" onclick="setDisplayCurrency('KRW')">KRW</button>
+      <button class="lang-btn" id="cur-usd" onclick="setDisplayCurrency('USD')">USD</button>
+    </div>
+    <div class="lang-switch">
       <button class="lang-btn active" id="lang-ko" onclick="changeLang('ko')">KO</button>
       <button class="lang-btn" id="lang-en" onclick="changeLang('en')">EN</button>
     </div>
