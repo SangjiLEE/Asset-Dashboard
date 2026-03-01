@@ -119,7 +119,6 @@ function changeLang(lang) {
 }
 
 function updateUI() {
-  // Update static elements with data-i18n
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (i18n[currentLang][key]) {
@@ -131,7 +130,6 @@ function updateUI() {
     }
   });
 
-  // Logo special handling
   const logo = document.getElementById('logo');
   if (logo) {
     if (currentLang === 'ko') {
@@ -141,11 +139,9 @@ function updateUI() {
     }
   }
 
-  // Update lang buttons
   document.getElementById('lang-ko').classList.toggle('active', currentLang === 'ko');
   document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
   
-  // Update Chart Title
   const chartTitle = document.getElementById('chartTitle');
   if (chartTitle) {
     chartTitle.textContent = chartMode === 'asset' ? i18n[currentLang].chart_asset : i18n[currentLang].chart_return;
@@ -185,49 +181,68 @@ setInterval(updateClock, 1000); updateClock();
 })();
 
 // ═══════════════════════════════════════
-// FREE DATA FETCHING (Using CORS Proxy)
+// FREE DATA FETCHING (Robust Fallback System)
 // ═══════════════════════════════════════
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
   const proxy = "https://api.allorigins.win/raw?url=";
-  let url = "";
   
   if (type === 'price') {
-    url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
+    // 1단계: Quote API 시도 (회사 이름 확보용)
+    try {
+      const quoteUrl = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
+      const qRes = await fetch(proxy + encodeURIComponent(quoteUrl));
+      const qData = await qRes.json();
+      const result = qData.quoteResponse.result[0];
+      if (result && result.regularMarketPrice) {
+        return {
+          price: result.regularMarketPrice,
+          prevClose: result.regularMarketPreviousClose,
+          name: result.longName || result.shortName || symbol.split('.')[0],
+          currency: result.currency,
+          symbol: symbol
+        };
+      }
+    } catch (e) {
+      console.warn("Quote API failed, falling back to Chart API");
+    }
+
+    // 2단계: Chart API 시도 (가격 정보 확보용 - 더 안정적임)
+    const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    const cRes = await fetch(proxy + encodeURIComponent(chartUrl));
+    const cData = await cRes.json();
+    const result = cData.chart.result[0];
+    if (!result) throw new Error('Data not found');
+    
+    const meta = result.meta;
+    return {
+      price: meta.regularMarketPrice,
+      prevClose: meta.previousClose || meta.chartPreviousClose,
+      name: symbol.split('.')[0], 
+      currency: meta.currency,
+      symbol: symbol
+    };
   } else {
+    // History fetching
     const period1 = Math.floor(new Date(start).getTime() / 1000);
     const period2 = Math.floor(new Date(end).getTime() / 1000);
-    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
-  }
-
-  try {
-    const response = await fetch(proxy + encodeURIComponent(url));
-    if (!response.ok) throw new Error('Network response was not ok');
-    const data = await response.json();
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
     
-    if (type === 'price') {
-      const result = data.quoteResponse.result[0];
-      if (!result) throw new Error('Symbol not found');
-      return {
-        price: result.regularMarketPrice,
-        prevClose: result.regularMarketPreviousClose,
-        name: result.longName || result.shortName || symbol,
-        currency: result.currency,
-        symbol: symbol
-      };
-    } else {
+    try {
+      const response = await fetch(proxy + encodeURIComponent(url));
+      const data = await response.json();
       const result = data.chart.result[0];
-      if (!result) return [];
+      if (!result || !result.timestamp) return [];
+      
       const timestamps = result.timestamp;
       const quotes = result.indicators.quote[0].close;
-      if (!timestamps) return [];
       return timestamps.map((ts, i) => ({
         date: new Date(ts * 1000).toISOString().split('T')[0],
         close: quotes[i]
       })).filter(d => d.close != null);
+    } catch (e) {
+      console.error("History Fetch Error:", e);
+      return [];
     }
-  } catch (error) {
-    console.error("Yahoo Fetch Error:", error);
-    throw error;
   }
 }
 
@@ -248,13 +263,11 @@ async function fetchHistory(symbol, start, end) {
   const key = `${symbol}|${start}|${end}`;
   if (historyCache[key]) return historyCache[key];
 
-  try {
-    const arr = await fetchFromYahoo(symbol, 'history', start, end);
+  const arr = await fetchFromYahoo(symbol, 'history', start, end);
+  if (arr.length > 0) {
     historyCache[key] = arr;
-    return arr;
-  } catch (error) {
-    return [];
   }
+  return arr;
 }
 
 // ═══════════════════════════════════════
@@ -429,7 +442,7 @@ function renderBar() {
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
-  updateUI(); // Updates chartTitle
+  updateUI(); 
   document.getElementById('tabA').classList.toggle('active',mode==='asset');
   document.getElementById('tabR').classList.toggle('active',mode==='return');
   if (mode==='return' && document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
@@ -454,13 +467,9 @@ async function loadChart() {
   for (let i=0; i<holdings.length; i++) {
     const h=holdings[i], sym=h.symbol.replace('.KS','').replace('.KQ','');
     if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} ${i18n[currentLang].fetching_stock} (${i+1}/${holdings.length})</div>`;
-    try {
-      const hist = await fetchHistory(h.symbol, start, end);
-      if (hist && hist.length > 0) {
-        historyCache[h.symbol] = hist;
-      }
-    } catch(e) {
-      console.error(e);
+    const hist = await fetchHistory(h.symbol, start, end);
+    if (hist && hist.length > 0) {
+      historyCache[h.symbol] = hist;
     }
   }
 
