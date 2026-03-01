@@ -4,8 +4,7 @@
 const i18n = {
   ko: {
     title: "포트폴리오 대시보드",
-    logo_sub: "대시보드",
-    ai_sync: "AI 데이터 연동",
+    ai_sync: "실시간 데이터 연동",
     summary_invested: "총 투자금액",
     summary_current: "현재 평가금액",
     summary_pnl: "총 손익",
@@ -39,7 +38,7 @@ const i18n = {
     toast_input_ticker: "종목 코드를 입력하세요",
     toast_input_price: "매수가를 입력하세요",
     toast_input_shares: "수량을 입력하세요",
-    toast_fetch_fail: "데이터를 불러올 수 없습니다. 코드를 확인하세요.",
+    toast_fetch_fail: "데이터를 불러올 수 없습니다. (Yahoo API 응답 지연)",
     toast_loading: "📡 데이터 조회 중...",
     asset_val: "평가금액",
     pnl_val: "손익",
@@ -52,8 +51,7 @@ const i18n = {
   },
   en: {
     title: "Portfolio Dashboard",
-    logo_sub: "Dashboard",
-    ai_sync: "AI Sync Active",
+    ai_sync: "Real-time Sync",
     summary_invested: "Total Invested",
     summary_current: "Current Value",
     summary_pnl: "Total P&L",
@@ -87,7 +85,7 @@ const i18n = {
     toast_input_ticker: "Enter ticker symbol",
     toast_input_price: "Enter buy price",
     toast_input_shares: "Enter shares quantity",
-    toast_fetch_fail: "Fetch failed — Check ticker symbol",
+    toast_fetch_fail: "Fetch failed — (Yahoo API Timeout)",
     toast_loading: "📡 Fetching data...",
     asset_val: "Value",
     pnl_val: "P&L",
@@ -104,7 +102,7 @@ const i18n = {
 // STATE
 // ═══════════════════════════════════════
 let currentLang     = localStorage.getItem('ph2_lang') || 'ko';
-let displayCurrency = localStorage.getItem('ph2_display_cur') || 'KRW'; // 표시 통화 (KRW/USD)
+let displayCurrency = localStorage.getItem('ph2_display_cur') || 'KRW'; 
 let holdings        = JSON.parse(localStorage.getItem('ph2_holdings') || '[]');
 let usdKrwRate      = 1350; 
 let priceCache      = {};
@@ -152,7 +150,6 @@ function updateUI() {
   document.getElementById('lang-ko').classList.toggle('active', currentLang === 'ko');
   document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
   
-  // Currency Tabs
   const curKo = document.getElementById('cur-krw');
   const curEn = document.getElementById('cur-usd');
   if (curKo) curKo.classList.toggle('active', displayCurrency === 'KRW');
@@ -207,53 +204,70 @@ setInterval(updateClock, 1000); updateClock();
 })();
 
 // ═══════════════════════════════════════
-// DATA FETCHING (Robust)
+// ROBUST DATA FETCHING ENGINE
 // ═══════════════════════════════════════
-async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
-  // Use multiple proxies for reliability
+async function fetchWithRetry(url, retries = 2) {
   const proxies = [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?"
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
   ];
-  
+
+  for (let i = 0; i < proxies.length; i++) {
+    for (let j = 0; j < retries; j++) {
+      try {
+        const targetUrl = proxies[i](url);
+        const response = await fetch(targetUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data) return data;
+        }
+      } catch (e) {
+        console.warn(`Attempt ${j+1} with proxy ${i} failed`);
+      }
+      await new Promise(r => setTimeout(r, 500)); // Delay between retries
+    }
+  }
+  throw new Error("All fetching attempts failed");
+}
+
+async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
   let url = "";
   if (type === 'price') {
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
   } else {
-    const period1 = Math.floor(new Date(start).getTime() / 1000);
-    const period2 = Math.floor(new Date(end).getTime() / 1000);
-    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
+    const p1 = Math.floor(new Date(start).getTime() / 1000);
+    const p2 = Math.floor(new Date(end).getTime() / 1000);
+    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
   }
 
-  for (const proxy of proxies) {
-    try {
-      const response = await fetch(proxy + encodeURIComponent(url));
-      if (!response.ok) continue;
-      const data = await response.json();
-      const result = data.chart.result[0];
-      if (!result) continue;
+  try {
+    const data = await fetchWithRetry(url);
+    const result = data.chart?.result?.[0];
+    if (!result) throw new Error("Invalid Yahoo response");
 
-      if (type === 'price') {
-        const meta = result.meta;
-        return {
-          price: meta.regularMarketPrice,
-          prevClose: meta.previousClose || meta.chartPreviousClose,
-          name: symbol.split('.')[0], 
-          currency: meta.currency,
-          symbol: symbol
-        };
-      } else {
-        if (!result.timestamp) return [];
-        const timestamps = result.timestamp;
-        const quotes = result.indicators.quote[0].close;
-        return timestamps.map((ts, i) => ({
-          date: new Date(ts * 1000).toISOString().split('T')[0],
-          close: quotes[i]
-        })).filter(d => d.close != null);
-      }
-    } catch (e) { console.error(`Proxy ${proxy} failed`, e); }
+    if (type === 'price') {
+      const meta = result.meta;
+      return {
+        price: meta.regularMarketPrice,
+        prevClose: meta.previousClose || meta.chartPreviousClose,
+        name: symbol.split('.')[0], 
+        currency: meta.currency,
+        symbol: symbol
+      };
+    } else {
+      if (!result.timestamp) return [];
+      const timestamps = result.timestamp;
+      const quotes = result.indicators.quote[0].close;
+      return timestamps.map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().split('T')[0],
+        close: quotes[i]
+      })).filter(d => d.close != null);
+    }
+  } catch (e) {
+    console.error(`Fetch error for ${symbol}:`, e);
+    throw e;
   }
-  throw new Error("All proxies failed");
 }
 
 async function updateUsdKrwRate() {
@@ -300,7 +314,8 @@ async function addHolding() {
   if (!bpRaw || +bpRaw<=0) { toast(i18n[currentLang].toast_input_price,'err'); return; }
   if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
   
-  if (currency==='KRW' && !ticker.includes('.')) ticker += '.KS';
+  // KR stock auto-fix
+  if (currency==='KRW' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
@@ -337,8 +352,15 @@ function removeHolding(id) {
 function save() { localStorage.setItem('ph2_holdings', JSON.stringify(holdings)); }
 
 // ═══════════════════════════════════════
-// RENDER ALL
+// RENDER & CONVERSION
 // ═══════════════════════════════════════
+function convert(val, from) {
+  if (from === displayCurrency) return val;
+  if (from === 'USD' && displayCurrency === 'KRW') return val * usdKrwRate;
+  if (from === 'KRW' && displayCurrency === 'USD') return val / usdKrwRate;
+  return val;
+}
+
 function renderAll() {
   renderCards(); renderHoldings(); renderDonut(); renderBar(); resetChartIfEmpty();
 }
@@ -355,13 +377,6 @@ function resetChartIfEmpty() {
   }
 }
 
-function convert(val, from) {
-  if (from === displayCurrency) return val;
-  if (from === 'USD' && displayCurrency === 'KRW') return val * usdKrwRate;
-  if (from === 'KRW' && displayCurrency === 'USD') return val / usdKrwRate;
-  return val;
-}
-
 function renderCards() {
   if (!holdings.length) {
     ['cInvested','cCurrent','cPnl','cRet'].forEach(id => {
@@ -371,21 +386,19 @@ function renderCards() {
     return;
   }
   
-  let totalInvConverted = 0;
-  let totalCurConverted = 0;
-
+  let totalInv = 0, totalCur = 0;
   holdings.forEach(h => {
-    totalInvConverted += convert(h.buyPrice * h.shares, h.currency);
-    totalCurConverted += convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
+    totalInv += convert(h.buyPrice * h.shares, h.currency);
+    totalCur += convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
   });
 
-  const pnl = totalCurConverted - totalInvConverted;
-  const ret = totalInvConverted > 0 ? (pnl / totalInvConverted) * 100 : 0;
-  const symbol = displayCurrency === 'KRW' ? '₩' : '$';
+  const pnl = totalCur - totalInv;
+  const ret = totalInv > 0 ? (pnl / totalInv) * 100 : 0;
+  const sym = displayCurrency === 'KRW' ? '₩' : '$';
   const dec = displayCurrency === 'KRW' ? 0 : 2;
 
-  document.getElementById('cInvested').textContent = `${symbol}${fNum(totalInvConverted, dec)}`;
-  document.getElementById('cCurrent').textContent  = `${symbol}${fNum(totalCurConverted, dec)}`;
+  document.getElementById('cInvested').textContent = `${sym}${fNum(totalInv, dec)}`;
+  document.getElementById('cCurrent').textContent  = `${sym}${fNum(totalCur, dec)}`;
   
   const pe = document.getElementById('cPnl'), re = document.getElementById('cRet');
   if (pe) {
@@ -407,15 +420,12 @@ function renderHoldings() {
     const pnl = h.currentPrice ? (h.currentPrice-h.buyPrice)/h.buyPrice*100 : null;
     const cls = pnl==null?'':pnl>=0?'up':'down';
     const sign= pnl==null?'':pnl>=0?'+':'';
-    const sym = h.symbol.replace('.KS','').replace('.KQ','');
-    
-    // 개별 종목은 본래 통화로 표시하되, 요약 정보에 환율이 반영됨을 알림
     const isUsd = h.currency === 'USD';
     const badge = isUsd ? '<span class="badge badge-us">USD</span>' : '<span class="badge badge-kr">KRW</span>';
     
     return `<div class="h-item">
       <div style="flex:1; overflow:hidden;">
-        <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">${sym}${badge}</div>
+        <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">${h.symbol.split('.')[0]}${badge}</div>
         <div class="h-name" title="${h.name}">${h.name}</div>
         <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}${currentLang==='ko'?'주':' Shares'}@${isUsd?'$':'₩'}${fNum(h.buyPrice,isUsd?2:0)}</div>
       </div>
@@ -436,20 +446,20 @@ function renderDonut() {
     if(donutInst){donutInst.destroy();donutInst=null;} return;
   }
   
-  const valsConverted = holdings.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
-  const totalConverted = valsConverted.reduce((a,b)=>a+b,0);
-  const labels = holdings.map(h=>h.symbol.replace('.KS','').replace('.KQ',''));
+  const vals = holdings.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
+  const total = vals.reduce((a,b)=>a+b,0);
+  const labels = holdings.map(h=>h.symbol.split('.')[0]);
   
   if(donutInst)donutInst.destroy();
   donutInst = new Chart(canvas, {
     type:'doughnut',
-    data:{labels,datasets:[{data:valsConverted,backgroundColor:COLORS.slice(0,holdings.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+(ctx.raw/totalConverted*100).toFixed(1)+'%'}}}}
+    data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,holdings.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+(ctx.raw/total*100).toFixed(1)+'%'}}}}
   });
   
   list.innerHTML=holdings.map((h,i)=>{
-    const pct=(valsConverted[i]/totalConverted*100).toFixed(1);
-    return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${h.symbol.replace('.KS','').replace('.KQ','')}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
+    const pct=(vals[i]/total*100).toFixed(1);
+    return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${h.symbol.split('.')[0]}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
   }).join('');
 }
 
@@ -461,7 +471,7 @@ function renderBar() {
     if(barInst){barInst.destroy();barInst=null;} return;
   }
   canvas.style.display='block'; wrap.style.display='none';
-  const labels=holdings.map(h=>h.symbol.replace('.KS','').replace('.KQ',''));
+  const labels=holdings.map(h=>h.symbol.split('.')[0]);
   const data=holdings.map(h=>h.currentPrice?+((h.currentPrice-h.buyPrice)/h.buyPrice*100).toFixed(2):0);
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
@@ -469,7 +479,7 @@ function renderBar() {
 }
 
 // ═══════════════════════════════════════
-// CHART
+// CHART LOGIC
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
@@ -483,18 +493,17 @@ function switchMode(mode) {
 async function loadChart() {
   if (!holdings.length) { toast(i18n[currentLang].empty_holdings,'err'); return; }
   const start=document.getElementById('dStart').value, end=document.getElementById('dEnd').value;
-  if (!start||!end) { toast('Dates required','err'); return; }
+  if (!start||!end) return;
 
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
   if (area) { area.style.display='flex'; area.innerHTML=`<div class="empty"><span class="spin"></span>${i18n[currentLang].loading_history}</div>`; }
   if (canvas) canvas.style.display='none';
-  const sliderPanel = document.getElementById('sliderPanel');
-  if (sliderPanel) sliderPanel.style.display='none';
+  if (document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
   historyCache={};
 
   for (let i=0; i<holdings.length; i++) {
-    const h=holdings[i], sym=h.symbol.replace('.KS','').replace('.KQ','');
-    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} ${i18n[currentLang].fetching_stock} (${i+1}/${holdings.length})</div>`;
+    const h=holdings[i];
+    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${h.symbol.split('.')[0]} ${i18n[currentLang].fetching_stock} (${i+1}/${holdings.length})</div>`;
     const hist = await fetchHistory(h.symbol, start, end);
     if (hist && hist.length > 0) historyCache[h.symbol] = hist;
   }
@@ -512,45 +521,44 @@ function drawChart() {
 
 function drawAssetChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
-  if (area) area.style.display='none';
-  if (canvas) canvas.style.display='block';
+  if (area) area.style.display='none'; if (canvas) canvas.style.display='block';
 
   const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
   const allDates=[...new Set(Object.values(historyCache).flatMap(a=>a.map(d=>d.date)))].sort();
   
-  let totalInvConverted = 0;
-  holdings.forEach(h => { totalInvConverted += convert(h.buyPrice * h.shares, h.currency); });
+  let totalInv = 0;
+  holdings.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
 
   const lastClose={};
-  const assetsConverted = allDates.map(date=>{
-    let totConverted=0, any=false;
+  const assets = allDates.map(date=>{
+    let tot=0, any=false;
     for(const [sym,hist] of Object.entries(historyCache)){
       const h=hMap[sym]; if(!h)continue;
       const found=hist.find(x=>x.date===date);
       if(found) lastClose[sym]=found.close;
       if(lastClose[sym]){
-        totConverted += convert(lastClose[sym] * h.shares, h.currency);
+        tot += convert(lastClose[sym] * h.shares, h.currency);
         any=true;
       }
     }
-    return any?totConverted:null;
+    return any?tot:null;
   });
 
-  const symbol = displayCurrency === 'KRW' ? '₩' : '$';
+  const sym = displayCurrency === 'KRW' ? '₩' : '$';
   if(chartInst)chartInst.destroy();
   chartInst=new Chart(canvas,{
     type:'line',
     data:{datasets:[
-      {label: i18n[currentLang].summary_current, data:allDates.map((d,i)=>({x:d,y:assetsConverted[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
-      {label: i18n[currentLang].summary_invested, data:allDates.map(d=>({x:d,y:totalInvConverted})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
-      {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInvConverted*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
+      {label: i18n[currentLang].summary_current, data:allDates.map((d,i)=>({x:d,y:assets[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
+      {label: i18n[currentLang].summary_invested, data:allDates.map(d=>({x:d,y:totalInv})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
+      {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInv*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
     ]},
     options:{
       responsive:true,animation:false,interaction:{mode:'none'},
       plugins:{legend:{display:true,position:'top',labels:{color:'#8888aa',font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},tooltip:{enabled:false}},
       scales:{
         x:{type:'category',grid:{color:'rgba(42,42,62,.4)'},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},maxTicksLimit:10}},
-        y:{grid:{color:'rgba(42,42,62,.4)'},border:{dash:[4,4]},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : symbol+fNum(v)}},
+        y:{grid:{color:'rgba(42,42,62,.4)'},border:{dash:[4,4]},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
       },
     }
   });
@@ -574,7 +582,7 @@ function drawReturnChart() {
   const datasets=Object.keys(historyCache).map((sym,i)=>{
     const hist=historyCache[sym], base=hist[0]?.close;
     if(!base)return null;
-    return {label:sym.replace('.KS','').replace('.KQ',''),data:hist.map(d=>({x:d.date,y:+((d.close-base)/base*100).toFixed(2)})),borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'18',fill:false,tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2};
+    return {label:sym.split('.')[0],data:hist.map(d=>({x:d.date,y:+((d.close-base)/base*100).toFixed(2)})),borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'18',fill:false,tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2};
   }).filter(Boolean);
 
   if(chartInst)chartInst.destroy();
@@ -595,47 +603,45 @@ function onSlider(idx) {
     }
   }
 
-  let totalAssetConverted = 0;
-  let totalInvConverted = 0;
-  holdings.forEach(h => { totalInvConverted += convert(h.buyPrice * h.shares, h.currency); });
+  let totalAsset = 0, totalInv = 0;
+  holdings.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
 
   const chips=[];
   for(const [sym,] of Object.entries(historyCache)){
     const h=hMap[sym]; if(!h)continue;
     const price=lastClose[sym]; if(!price)continue;
-    const valConverted = convert(price * h.shares, h.currency);
-    const invConverted = convert(h.buyPrice * h.shares, h.currency);
-    totalAssetConverted += valConverted;
-    chips.push({sym,h,valConverted,pnlConverted:valConverted-invConverted,pct:(valConverted-invConverted)/invConverted*100,price});
+    const val = convert(price * h.shares, h.currency);
+    const inv = convert(h.buyPrice * h.shares, h.currency);
+    totalAsset += val;
+    chips.push({sym,h,val,pnl:val-inv,pct:(val-inv)/inv*100,price});
   }
 
-  const totalPnl = totalAssetConverted - totalInvConverted;
-  const totalPct = totalInvConverted > 0 ? (totalPnl / totalInvConverted) * 100 : 0;
-  const s = totalPnl >= 0 ? '+' : '';
-  const symbol = displayCurrency === 'KRW' ? '₩' : '$';
+  const pnl = totalAsset - totalInv;
+  const ret = totalInv > 0 ? (pnl / totalInv) * 100 : 0;
+  const s = pnl >= 0 ? '+' : '';
+  const sym = displayCurrency === 'KRW' ? '₩' : '$';
   const dec = displayCurrency === 'KRW' ? 0 : 2;
 
   const sliderStats = document.getElementById('sliderStats');
   if (sliderStats) {
     sliderStats.innerHTML=`
-      <div class="sstat"><div class="sstat-label">${i18n[currentLang].asset_val}</div><div class="sstat-val" style="color:var(--text);">${symbol}${fNum(totalAssetConverted, dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">${i18n[currentLang].pnl_val}</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${symbol}${fNum(totalPnl, dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">${i18n[currentLang].return_val}</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].asset_val}</div><div class="sstat-val" style="color:var(--text);">${sym}${fNum(totalAsset, dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].pnl_val}</div><div class="sstat-val ${pnl>=0?'up':'down'}">${s}${sym}${fNum(pnl, dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].return_val}</div><div class="sstat-val ${ret>=0?'up':'down'}">${s}${ret.toFixed(2)}%</div></div>`;
   }
 
   const sliderChips = document.getElementById('sliderChips');
   if (sliderChips) {
     sliderChips.innerHTML=chips.map(r=>{
       const sign=r.pct>=0?'+':'', d=r.h.currency==='USD'?2:0, c=r.h.currency==='USD'?'$':'₩';
-      const sym=r.sym.replace('.KS','').replace('.KQ','');
-      return `<div class="chip"><div class="chip-sym">${sym}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
+      return `<div class="chip"><div class="chip-sym">${r.sym.split('.')[0]}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
     }).join('');
   }
 
   if(chartInst&&chartMode==='asset'){
     const ds=chartInst.data.datasets.find(d=>d._cur);
     if(ds){
-      const yMax=chartInst.scales?.y?.max||totalInvConverted*2, yMin=chartInst.scales?.y?.min||0;
+      const yMax=chartInst.scales?.y?.max||totalInv*2, yMin=chartInst.scales?.y?.min||0;
       ds.data=[{x:date,y:yMin},{x:date,y:yMax}];
       chartInst.update('none');
     }
@@ -650,7 +656,7 @@ async function refreshPrices() {
   await updateUsdKrwRate();
   let ok=0;
   for(const h of holdings){
-    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; h.name=info.name; ok++; }
+    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; ok++; }
     catch(e){ console.error(e); }
   }
   save(); renderAll();
