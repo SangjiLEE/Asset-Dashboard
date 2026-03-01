@@ -38,8 +38,8 @@ const i18n = {
     toast_input_ticker: "종목 코드를 입력하세요",
     toast_input_price: "매수가를 입력하세요",
     toast_input_shares: "수량을 입력하세요",
-    toast_fetch_fail: "데이터를 불러올 수 없습니다. (Yahoo API 응답 지연)",
-    toast_loading: "📡 데이터 조회 중...",
+    toast_fetch_fail: "데이터를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    toast_loading: "📡 서버 연결 중...",
     asset_val: "평가금액",
     pnl_val: "손익",
     return_val: "수익률",
@@ -85,8 +85,8 @@ const i18n = {
     toast_input_ticker: "Enter ticker symbol",
     toast_input_price: "Enter buy price",
     toast_input_shares: "Enter shares quantity",
-    toast_fetch_fail: "Fetch failed — (Yahoo API Timeout)",
-    toast_loading: "📡 Fetching data...",
+    toast_fetch_fail: "Fetch failed — Please try again in a moment.",
+    toast_loading: "📡 Connecting to server...",
     asset_val: "Value",
     pnl_val: "P&L",
     return_val: "Return",
@@ -204,70 +204,77 @@ setInterval(updateClock, 1000); updateClock();
 })();
 
 // ═══════════════════════════════════════
-// ROBUST DATA FETCHING ENGINE
+// ADVANCED SMART FETCHING ENGINE
 // ═══════════════════════════════════════
-async function fetchWithRetry(url, retries = 2) {
+async function smartFetch(url) {
   const proxies = [
-    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+    { url: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`, parser: (r) => r.json() },
+    { url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, parser: async (r) => { const j = await r.json(); return JSON.parse(j.contents); } },
+    { url: (u) => `https://thingproxy.freeboard.io/fetch/${u}`, parser: (r) => r.json() }
   ];
 
-  for (let i = 0; i < proxies.length; i++) {
-    for (let j = 0; j < retries; j++) {
-      try {
-        const targetUrl = proxies[i](url);
-        const response = await fetch(targetUrl);
-        if (response.ok) {
-          const data = await response.json();
-          if (data) return data;
-        }
-      } catch (e) {
-        console.warn(`Attempt ${j+1} with proxy ${i} failed`);
-      }
-      await new Promise(r => setTimeout(r, 500)); // Delay between retries
+  let lastError = null;
+  for (const proxy of proxies) {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 8000); // 8초 타임아웃
+      const response = await fetch(proxy.url(url), { signal: controller.signal });
+      clearTimeout(id);
+      
+      if (!response.ok) continue;
+      const data = await proxy.parser(response);
+      if (data && (data.chart || data.quoteResponse)) return data;
+    } catch (e) {
+      console.warn(`Proxy failed:`, e.message);
+      lastError = e;
     }
   }
-  throw new Error("All fetching attempts failed");
+  throw lastError || new Error("Failed to fetch from all sources");
 }
 
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
-  let url = "";
-  if (type === 'price') {
-    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  } else {
-    const p1 = Math.floor(new Date(start).getTime() / 1000);
-    const p2 = Math.floor(new Date(end).getTime() / 1000);
-    url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
-  }
+  // Use multiple subdomains for higher availability
+  const subdomains = ['query1', 'query2'];
+  let lastError = null;
 
-  try {
-    const data = await fetchWithRetry(url);
-    const result = data.chart?.result?.[0];
-    if (!result) throw new Error("Invalid Yahoo response");
-
+  for (const sub of subdomains) {
+    let url = "";
     if (type === 'price') {
-      const meta = result.meta;
-      return {
-        price: meta.regularMarketPrice,
-        prevClose: meta.previousClose || meta.chartPreviousClose,
-        name: symbol.split('.')[0], 
-        currency: meta.currency,
-        symbol: symbol
-      };
+      url = `https://${sub}.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
     } else {
-      if (!result.timestamp) return [];
-      const timestamps = result.timestamp;
-      const quotes = result.indicators.quote[0].close;
-      return timestamps.map((ts, i) => ({
-        date: new Date(ts * 1000).toISOString().split('T')[0],
-        close: quotes[i]
-      })).filter(d => d.close != null);
+      const p1 = Math.floor(new Date(start).getTime() / 1000);
+      const p2 = Math.floor(new Date(end).getTime() / 1000);
+      url = `https://${sub}.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
     }
-  } catch (e) {
-    console.error(`Fetch error for ${symbol}:`, e);
-    throw e;
+
+    try {
+      const data = await smartFetch(url);
+      const result = data.chart?.result?.[0];
+      if (!result) continue;
+
+      if (type === 'price') {
+        const meta = result.meta;
+        return {
+          price: meta.regularMarketPrice,
+          prevClose: meta.previousClose || meta.chartPreviousClose,
+          name: symbol.split('.')[0], 
+          currency: meta.currency,
+          symbol: symbol
+        };
+      } else {
+        if (!result.timestamp) return [];
+        const timestamps = result.timestamp;
+        const quotes = result.indicators.quote[0].close;
+        return timestamps.map((ts, i) => ({
+          date: new Date(ts * 1000).toISOString().split('T')[0],
+          close: quotes[i]
+        })).filter(d => d.close != null);
+      }
+    } catch (e) {
+      lastError = e;
+    }
   }
+  throw lastError;
 }
 
 async function updateUsdKrwRate() {
@@ -288,7 +295,9 @@ async function fetchPrice(symbol) {
     const r = await fetchFromYahoo(symbol, 'price');
     priceCache[symbol] = { data: r, ts: Date.now() };
     return r;
-  } catch (error) { throw new Error(i18n[currentLang].toast_fetch_fail); }
+  } catch (error) { 
+    throw new Error(i18n[currentLang].toast_fetch_fail); 
+  }
 }
 
 async function fetchHistory(symbol, start, end) {
@@ -310,18 +319,17 @@ async function addHolding() {
   const bpRaw = document.getElementById('inPrice').value;
   const shRaw = document.getElementById('inShares').value;
 
-  if (!ticker)              { toast(i18n[currentLang].toast_input_ticker,'err'); return; }
+  if (!ticker) { toast(i18n[currentLang].toast_input_ticker,'err'); return; }
   if (!bpRaw || +bpRaw<=0) { toast(i18n[currentLang].toast_input_price,'err'); return; }
   if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
   
-  // KR stock auto-fix
+  // Auto-append suffix for KR stocks
   if (currency==='KRW' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
   btn.innerHTML = `<span class="spin"></span>${i18n[currentLang].fetching_stock}`;
-  toast(i18n[currentLang].toast_loading);
-
+  
   try {
     const info = await fetchPrice(ticker);
     holdings.push({
@@ -479,7 +487,7 @@ function renderBar() {
 }
 
 // ═══════════════════════════════════════
-// CHART LOGIC
+// CHART & SLIDER
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
