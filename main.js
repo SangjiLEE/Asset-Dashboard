@@ -1,6 +1,105 @@
 // ═══════════════════════════════════════
+// I18N DICTIONARY
+// ═══════════════════════════════════════
+const i18n = {
+  ko: {
+    title: "포트폴리오 대시보드",
+    logo_sub: "대시보드",
+    ai_sync: "AI 데이터 연동",
+    summary_invested: "총 투자금액",
+    summary_current: "현재 평가금액",
+    summary_pnl: "총 손익",
+    summary_return: "수익률",
+    basis_buy: "매수가 기준",
+    basis_market: "시장가 기준",
+    unrealized_pnl: "미실현 손익",
+    entire_portfolio: "전체 포트폴리오",
+    add_title: "종목 추가",
+    label_ticker: "종목 코드",
+    label_market: "시장",
+    label_price: "매수가",
+    label_shares: "수량 (주)",
+    opt_us: "🇺🇸 미국 (USD)",
+    opt_kr: "🇰🇷 한국 (KRW)",
+    btn_add: "+ 추가",
+    chart_asset: "자산 추이",
+    chart_return: "수익률 추이",
+    tab_asset: "자산",
+    tab_return: "수익률",
+    btn_load: "조회",
+    holdings_title: "보유 종목",
+    btn_refresh: "새로고침",
+    allocation_title: "비중 배분",
+    pnl_by_asset: "종목별 손익률",
+    empty_holdings: "아직 추가된 종목이 없습니다",
+    empty_chart: "종목을 추가하면 그래프가 표시됩니다",
+    empty_after_add: "종목 추가 후 표시",
+    toast_added: "추가 완료!",
+    toast_updated: "업데이트 완료",
+    toast_input_ticker: "종목 코드를 입력하세요",
+    toast_input_price: "매수가를 입력하세요",
+    toast_input_shares: "수량을 입력하세요",
+    toast_fetch_fail: "가격 조회 실패 — 종목 코드를 확인하세요",
+    toast_loading: "📡 데이터 조회 중...",
+    asset_val: "평가금액",
+    pnl_val: "손익",
+    return_val: "수익률",
+    loading_history: "히스토리 로딩 중...",
+    fetching_stock: "조회 중...",
+    data_not_found: "데이터를 불러오지 못했습니다"
+  },
+  en: {
+    title: "Portfolio Dashboard",
+    logo_sub: "Dashboard",
+    ai_sync: "AI Sync Active",
+    summary_invested: "Total Invested",
+    summary_current: "Current Value",
+    summary_pnl: "Total P&L",
+    summary_return: "Return Rate",
+    basis_buy: "Based on Buy Price",
+    basis_market: "Based on Market Price",
+    unrealized_pnl: "Unrealized P&L",
+    entire_portfolio: "Entire Portfolio",
+    add_title: "Add Asset",
+    label_ticker: "Symbol",
+    label_market: "Market",
+    label_price: "Buy Price",
+    label_shares: "Shares",
+    opt_us: "🇺🇸 US (USD)",
+    opt_kr: "🇰🇷 KR (KRW)",
+    btn_add: "+ Add",
+    chart_asset: "Asset Trend",
+    chart_return: "Return Trend",
+    tab_asset: "Asset",
+    tab_return: "Return",
+    btn_load: "Load",
+    holdings_title: "Holdings",
+    btn_refresh: "Refresh",
+    allocation_title: "Allocation",
+    pnl_by_asset: "P&L by Asset",
+    empty_holdings: "No assets added yet",
+    empty_chart: "Add an asset to see the chart",
+    empty_after_add: "Shown after adding",
+    toast_added: "Added successfully!",
+    toast_updated: "Updated successfully",
+    toast_input_ticker: "Enter ticker symbol",
+    toast_input_price: "Enter buy price",
+    toast_input_shares: "Enter shares quantity",
+    toast_fetch_fail: "Fetch failed — Check ticker symbol",
+    toast_loading: "📡 Fetching data...",
+    asset_val: "Value",
+    pnl_val: "P&L",
+    return_val: "Return",
+    loading_history: "Loading history...",
+    fetching_stock: "Fetching...",
+    data_not_found: "Data not found"
+  }
+};
+
+// ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
+let currentLang  = localStorage.getItem('ph2_lang') || 'ko';
 let holdings     = JSON.parse(localStorage.getItem('ph2_holdings') || '[]');
 let priceCache   = {};
 let historyCache = {};
@@ -10,9 +109,55 @@ let sliderDates = [];
 const COLORS = ['#7c5cfc','#00d4aa','#ff4d6a','#f5a623','#4fc3f7','#81c784','#ce93d8','#ffb74d'];
 
 // ═══════════════════════════════════════
+// I18N ENGINE
+// ═══════════════════════════════════════
+function changeLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('ph2_lang', lang);
+  updateUI();
+  renderAll();
+}
+
+function updateUI() {
+  // Update static elements with data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (i18n[currentLang][key]) {
+      if (key === 'ai_sync') {
+        el.innerHTML = `<span class="pulse"></span>${i18n[currentLang][key]}`;
+      } else {
+        el.textContent = i18n[currentLang][key];
+      }
+    }
+  });
+
+  // Logo special handling
+  const logo = document.getElementById('logo');
+  if (logo) {
+    if (currentLang === 'ko') {
+      logo.innerHTML = `포트폴리오 <span>대시보드</span>`;
+    } else {
+      logo.innerHTML = `PORTFOLIO <span>DASHBOARD</span>`;
+    }
+  }
+
+  // Update lang buttons
+  document.getElementById('lang-ko').classList.toggle('active', currentLang === 'ko');
+  document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
+  
+  // Update Chart Title
+  const chartTitle = document.getElementById('chartTitle');
+  if (chartTitle) {
+    chartTitle.textContent = chartMode === 'asset' ? i18n[currentLang].chart_asset : i18n[currentLang].chart_return;
+  }
+}
+
+window.changeLang = changeLang;
+
+// ═══════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════
-const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString(currentLang === 'ko' ? 'ko-KR' : 'en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
@@ -25,7 +170,7 @@ function toast(msg, type='ok') {
 function updateClock() {
   const el = document.getElementById('htime');
   if (el) {
-    el.textContent = new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    el.textContent = new Date().toLocaleString(currentLang === 'ko' ? 'ko-KR' : 'en-US',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }
 }
 setInterval(updateClock, 1000); updateClock();
@@ -47,10 +192,8 @@ async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
   let url = "";
   
   if (type === 'price') {
-    // Quote API는 상세 종목 정보를 제공합니다 (이름 포함)
     url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
   } else {
-    // Chart API는 히스토리 데이터에 적합합니다
     const period1 = Math.floor(new Date(start).getTime() / 1000);
     const period2 = Math.floor(new Date(end).getTime() / 1000);
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
@@ -97,7 +240,7 @@ async function fetchPrice(symbol) {
     priceCache[symbol] = { data: r, ts: Date.now() };
     return r;
   } catch (error) {
-    throw new Error(`"${symbol}" 가격 조회 실패 — 종목 코드를 확인하세요`);
+    throw new Error(i18n[currentLang].toast_fetch_fail);
   }
 }
 
@@ -123,16 +266,16 @@ async function addHolding() {
   const bpRaw = document.getElementById('inPrice').value;
   const shRaw = document.getElementById('inShares').value;
 
-  if (!ticker)              { toast('종목 코드를 입력하세요','err'); return; }
-  if (!bpRaw || +bpRaw<=0) { toast('매수가를 입력하세요','err'); return; }
-  if (!shRaw || +shRaw<=0) { toast('수량을 입력하세요','err'); return; }
+  if (!ticker)              { toast(i18n[currentLang].toast_input_ticker,'err'); return; }
+  if (!bpRaw || +bpRaw<=0) { toast(i18n[currentLang].toast_input_price,'err'); return; }
+  if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
   
   if (mkt==='KR' && !ticker.includes('.')) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>조회 중...';
-  toast('📡 데이터 조회 중...');
+  btn.innerHTML = `<span class="spin"></span>${i18n[currentLang].fetching_stock}`;
+  toast(i18n[currentLang].toast_loading);
 
   try {
     const info = await fetchPrice(ticker);
@@ -143,7 +286,7 @@ async function addHolding() {
       currentPrice: info.price, prevClose: info.prevClose,
     });
     save(); renderAll();
-    toast(`✅ ${info.name} 추가 완료!`);
+    toast(`✅ ${i18n[currentLang].toast_added}`);
     document.getElementById('inTicker').value  = '';
     document.getElementById('inPrice').value   = '';
     document.getElementById('inShares').value  = '';
@@ -151,7 +294,7 @@ async function addHolding() {
     toast('❌ ' + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '+ 추가';
+    btn.innerHTML = i18n[currentLang].btn_add;
   }
 }
 
@@ -173,7 +316,7 @@ function renderAll() {
 function resetChartIfEmpty() {
   if (!holdings.length) {
     const el = document.getElementById('chartArea');
-    if (el) el.innerHTML = '<div class="empty">종목을 추가하면<br>그래프가 표시됩니다</div>';
+    if (el) el.innerHTML = `<div class="empty">${i18n[currentLang].empty_chart}</div>`;
     const mainChart = document.getElementById('mainChart');
     if (mainChart) mainChart.style.display = 'none';
     const sliderPanel = document.getElementById('sliderPanel');
@@ -205,7 +348,7 @@ function renderCards() {
     const pnl=(curKR-invKR)+(curUS-invUS)*1350;
     const ret=(pnl/(invKR+invUS*1350))*100;
     const pe=document.getElementById('cPnl'), re=document.getElementById('cRet');
-    if (pe) { pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+'(원환산)'; pe.className='card-val '+(pnl>=0?'up':'down'); }
+    if (pe) { pe.textContent=(pnl>=0?'+':'')+fNum(pnl,0)+(currentLang==='ko'?'(원환산)':'(KRW Equiv.)'); pe.className='card-val '+(pnl>=0?'up':'down'); }
     if (re) { re.textContent=(ret>=0?'+':'')+ret.toFixed(2)+'%';      re.className='card-val '+(ret>=0?'up':'down'); }
   } else {
     const isUS=hasUS, inv=isUS?invUS:invKR, cur=isUS?curUS:curKR;
@@ -223,7 +366,7 @@ function renderCards() {
 function renderHoldings() {
   const el = document.getElementById('holdList');
   if (!el) return;
-  if (!holdings.length) { el.innerHTML='<div class="empty" style="padding:40px 10px;">아직 추가된 종목이 없습니다</div>'; return; }
+  if (!holdings.length) { el.innerHTML=`<div class="empty" style="padding:40px 10px;">${i18n[currentLang].empty_holdings}</div>`; return; }
   el.innerHTML = holdings.map(h => {
     const pnl = h.currentPrice ? (h.currentPrice-h.buyPrice)/h.buyPrice*100 : null;
     const cls = pnl==null?'':pnl>=0?'up':'down';
@@ -237,7 +380,7 @@ function renderHoldings() {
           ${sym}${badge}
         </div>
         <div class="h-name" title="${h.name}">${h.name}</div>
-        <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}주@${isUS?'$':'₩'}${fNum(h.buyPrice,isUS?2:0)}</div>
+        <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}${currentLang==='ko'?'주':' Shares'}@${isUS?'$':'₩'}${fNum(h.buyPrice,isUS?2:0)}</div>
       </div>
       <div class="h-right">
         <div class="h-price ${cls}">${h.currentPrice?(isUS?'$':'₩')+fNum(h.currentPrice,isUS?2:0):'—'}</div>
@@ -252,7 +395,7 @@ function renderDonut() {
   const canvas=document.getElementById('donut'), list=document.getElementById('allocList');
   if (!canvas || !list) return;
   if (!holdings.length) {
-    list.innerHTML='<div style="color:var(--text3);font-size:11px;font-family:\'Space Mono\',monospace;">종목 추가 후 표시</div>';
+    list.innerHTML=`<div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;">${i18n[currentLang].empty_after_add}</div>`;
     if(donutInst){donutInst.destroy();donutInst=null;} return;
   }
   const vals=holdings.map(h=>(h.currentPrice||h.buyPrice)*h.shares);
@@ -286,26 +429,22 @@ function renderBar() {
 // ═══════════════════════════════════════
 function switchMode(mode) {
   chartMode=mode;
-  const tabA = document.getElementById('tabA');
-  const tabR = document.getElementById('tabR');
-  const chartTitle = document.getElementById('chartTitle');
-  const sliderPanel = document.getElementById('sliderPanel');
-  if (tabA) tabA.classList.toggle('active',mode==='asset');
-  if (tabR) tabR.classList.toggle('active',mode==='return');
-  if (chartTitle) chartTitle.textContent=mode==='asset'?'자산 추이':'수익률 추이';
-  if (mode==='return' && sliderPanel) sliderPanel.style.display='none';
+  updateUI(); // Updates chartTitle
+  document.getElementById('tabA').classList.toggle('active',mode==='asset');
+  document.getElementById('tabR').classList.toggle('active',mode==='return');
+  if (mode==='return' && document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
   if (Object.keys(historyCache).length) drawChart();
 }
 
 async function loadChart() {
-  if (!holdings.length) { toast('먼저 종목을 추가해주세요','err'); return; }
+  if (!holdings.length) { toast(i18n[currentLang].empty_holdings,'err'); return; }
   const start=document.getElementById('dStart').value, end=document.getElementById('dEnd').value;
-  if (!start||!end) { toast('날짜를 선택해주세요','err'); return; }
+  if (!start||!end) { toast('Please select dates','err'); return; }
 
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
   if (area) {
     area.style.display='flex';
-    area.innerHTML='<div class="empty"><span class="spin"></span>히스토리 로딩 중...</div>';
+    area.innerHTML=`<div class="empty"><span class="spin"></span>${i18n[currentLang].loading_history}</div>`;
   }
   if (canvas) canvas.style.display='none';
   const sliderPanel = document.getElementById('sliderPanel');
@@ -314,7 +453,7 @@ async function loadChart() {
 
   for (let i=0; i<holdings.length; i++) {
     const h=holdings[i], sym=h.symbol.replace('.KS','').replace('.KQ','');
-    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} 조회 중... (${i+1}/${holdings.length})</div>`;
+    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${sym} ${i18n[currentLang].fetching_stock} (${i+1}/${holdings.length})</div>`;
     try {
       const hist = await fetchHistory(h.symbol, start, end);
       if (hist && hist.length > 0) {
@@ -326,7 +465,7 @@ async function loadChart() {
   }
 
   if (!Object.keys(historyCache).length) {
-    if (area) area.innerHTML=`<div class="empty">데이터를 불러오지 못했습니다<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻ 다시 시도</button></div>`;
+    if (area) area.innerHTML=`<div class="empty">${i18n[currentLang].data_not_found}<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻</button></div>`;
     return;
   }
   drawChart();
@@ -362,8 +501,8 @@ function drawAssetChart() {
   chartInst=new Chart(canvas,{
     type:'line',
     data:{datasets:[
-      {label:'평가금액',data:allDates.map((d,i)=>({x:d,y:assets[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
-      {label:'투자원금',data:allDates.map(d=>({x:d.y,y:totalInv})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
+      {label: i18n[currentLang].summary_current, data:allDates.map((d,i)=>({x:d,y:assets[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
+      {label: i18n[currentLang].summary_invested, data:allDates.map(d=>({x:d,y:totalInv})),borderColor:'rgba(85,85,106,.6)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
       {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInv*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
     ]},
     options:{
@@ -440,9 +579,9 @@ function onSlider(idx) {
   const sliderStats = document.getElementById('sliderStats');
   if (sliderStats) {
     sliderStats.innerHTML=`
-      <div class="sstat"><div class="sstat-label">평가금액</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">손익</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
-      <div class="sstat"><div class="sstat-label">수익률</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].asset_val}</div><div class="sstat-val" style="color:var(--text);">${cur}${fNum(totalAsset,dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].pnl_val}</div><div class="sstat-val ${totalPnl>=0?'up':'down'}">${s}${cur}${fNum(totalPnl,dec)}</div></div>
+      <div class="sstat"><div class="sstat-label">${i18n[currentLang].return_val}</div><div class="sstat-val ${totalPct>=0?'up':'down'}">${s}${totalPct.toFixed(2)}%</div></div>`;
   }
 
   const sliderChips = document.getElementById('sliderChips');
@@ -476,7 +615,7 @@ async function refreshPrices() {
   }
   save(); renderCards(); renderHoldings(); renderDonut(); renderBar();
   if (icon) icon.style.animation='';
-  toast(`✅ 업데이트 완료`);
+  toast(`✅ ${i18n[currentLang].toast_updated}`);
 }
 
 window.addHolding = addHolding;
@@ -487,6 +626,7 @@ window.onSlider = onSlider;
 window.refreshPrices = refreshPrices;
 
 document.addEventListener('DOMContentLoaded', () => {
+  updateUI();
   renderAll();
   if(holdings.length) refreshPrices();
 });

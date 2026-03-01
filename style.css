@@ -108,6 +108,31 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:5px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 
+/* Language Switcher */
+.lang-switch {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.lang-btn {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: .15s;
+}
+.lang-btn.active {
+  background: var(--accent2);
+  color: #fff;
+}
+
 @media(max-width:900px){
   .cards{grid-template-columns:repeat(2,1fr);}
   .main-grid{grid-template-columns:1fr;}
