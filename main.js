@@ -202,30 +202,31 @@ setInterval(updateClock, 1000); updateClock();
 // ULTRA-ROBUST SMART FETCHING ENGINE
 // ═══════════════════════════════════════
 async function fetchWithProxy(url) {
-  // Different proxy types for maximum compatibility
-  const proxyConfigs = [
-    { name: 'CORS.IO', url: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`, parser: (r) => r.json() },
-    { name: 'ALLORIGINS', url: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, parser: (r) => r.json() },
-    { name: 'CLOUDFLARE', url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, parser: async (r) => { const j = await r.json(); return JSON.parse(j.contents); } }
-  ];
+  const q2url = url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com');
+  const isValid = (d) => d && (d.chart || d.quoteResponse || d.spark || Array.isArray(d.quotes) || Array.isArray(d));
+  const enc = encodeURIComponent;
 
-  for (const proxy of proxyConfigs) {
-    try {
-      console.log(`[Fetch] Trying via ${proxy.name}...`);
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 6000); // 6s timeout
-      const response = await fetch(proxy.url(url), { signal: controller.signal });
-      clearTimeout(id);
-      
-      if (!response.ok) continue;
-      const data = await proxy.parser(response);
-      // Validate data structure
-      if (data && (data.chart || data.quoteResponse || data.spark)) return data;
-    } catch (e) {
-      console.warn(`[Fetch] ${proxy.name} failed:`, e.message);
-    }
-  }
-  throw new Error("Connectivity Issue: All proxy channels are unavailable.");
+  const tryFetch = (proxyUrl, parser, name) => {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 8000);
+    return fetch(proxyUrl, { signal: ctrl.signal })
+      .then(async r => {
+        clearTimeout(id);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await parser(r);
+        if (!isValid(data)) throw new Error('invalid response');
+        return data;
+      })
+      .catch(e => { clearTimeout(id); console.warn(`[Fetch] ${name}:`, e.message); throw e; });
+  };
+
+  return Promise.any([
+    tryFetch(`https://corsproxy.io/?${enc(url)}`,   r => r.json(), 'CORS.IO/q1'),
+    tryFetch(`https://corsproxy.io/?${enc(q2url)}`,  r => r.json(), 'CORS.IO/q2'),
+    tryFetch(`https://api.allorigins.win/raw?url=${enc(url)}`,   r => r.json(), 'ALLORIGINS/q1'),
+    tryFetch(`https://api.allorigins.win/raw?url=${enc(q2url)}`,  r => r.json(), 'ALLORIGINS/q2'),
+    tryFetch(`https://api.allorigins.win/get?url=${enc(url)}`,   async r => { const j = await r.json(); return JSON.parse(j.contents); }, 'ALLORIGINS_GET'),
+  ]).catch(() => { throw new Error("Connectivity Issue: All proxy channels are unavailable."); });
 }
 
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
@@ -254,7 +255,8 @@ async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
   } else {
     if (!result.timestamp) return [];
     const timestamps = result.timestamp;
-    const quotes = result.indicators.quote[0].close;
+    const quotes = result.indicators?.quote?.[0]?.close;
+    if (!quotes) return [];
     return timestamps.map((ts, i) => ({
       date: new Date(ts * 1000).toISOString().split('T')[0],
       close: quotes[i]
@@ -287,20 +289,19 @@ async function updateUsdKrwRate() {
 async function fetchPrice(symbol) {
   if (priceCache[symbol] && Date.now()-priceCache[symbol].ts < 60000)
     return priceCache[symbol].data;
-  
-  const r = await fetchFromYahoo(symbol, 'price');
-  r.name = await fetchStockName(symbol); // 안정적으로 이름 따로 조회
+
+  const [r, name] = await Promise.all([
+    fetchFromYahoo(symbol, 'price'),
+    fetchStockName(symbol)
+  ]);
+  r.name = name;
   priceCache[symbol] = { data: r, ts: Date.now() };
   return r;
 }
 
 async function fetchHistory(symbol, start, end) {
-  const key = `${symbol}|${start}|${end}`;
-  if (historyCache[key]) return historyCache[key];
   try {
-    const arr = await fetchFromYahoo(symbol, 'history', start, end);
-    if (arr.length > 0) historyCache[key] = arr;
-    return arr;
+    return await fetchFromYahoo(symbol, 'history', start, end);
   } catch (e) { return []; }
 }
 
@@ -498,12 +499,10 @@ async function loadChart() {
   if (document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
   historyCache={};
 
-  for (let i=0; i<holdings.length; i++) {
-    const h=holdings[i];
-    if (area) area.innerHTML=`<div class="empty"><span class="spin"></span>${h.symbol.split('.')[0]} ${i18n[currentLang].fetching_stock} (${i+1}/${holdings.length})</div>`;
-    const hist = await fetchHistory(h.symbol, start, end);
-    if (hist && hist.length > 0) historyCache[h.symbol] = hist;
-  }
+  const results = await Promise.allSettled(holdings.map(h => fetchHistory(h.symbol, start, end)));
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value.length > 0) historyCache[holdings[i].symbol] = r.value;
+  });
 
   if (!Object.keys(historyCache).length) {
     if (area) area.innerHTML=`<div class="empty">${i18n[currentLang].data_not_found}<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻</button></div>`;
@@ -651,11 +650,14 @@ async function refreshPrices() {
   if (icon) icon.style.animation='sp .7s linear infinite';
   priceCache={};
   await updateUsdKrwRate();
-  let ok=0;
-  for(const h of holdings){
-    try{ const info=await fetchPrice(h.symbol); h.currentPrice=info.price; h.prevClose=info.prevClose; h.name=info.name; ok++; }
-    catch(e){ console.error(e); }
-  }
+  const results = await Promise.allSettled(holdings.map(h => fetchPrice(h.symbol)));
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      holdings[i].currentPrice = r.value.price;
+      holdings[i].prevClose    = r.value.prevClose;
+      holdings[i].name         = r.value.name;
+    }
+  });
   save(); renderAll();
   if (icon) icon.style.animation='';
   toast(`✅ ${i18n[currentLang].toast_updated}`);
