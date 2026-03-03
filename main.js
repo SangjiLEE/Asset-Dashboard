@@ -650,14 +650,70 @@ function drawReturnChart() {
   if (area) area.style.display='none'; if (canvas) canvas.style.display='block';
   if (document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
 
-  const datasets=Object.keys(historyCache).map((sym,i)=>{
-    const hist=historyCache[sym], base=hist[0]?.close;
-    if(!base)return null;
-    return {label:sym.split('.')[0],data:hist.map(d=>({x:d.date,y:+((d.close-base)/base*100).toFixed(2)})),borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'18',fill:false,tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2};
+  // 모든 종목 날짜 합집합으로 공통 x축 생성 (미국/한국 거래일 차이 해결)
+  const allDates = [...new Set(
+    Object.values(historyCache).flatMap(a => a.map(d => d.date))
+  )].sort();
+
+  const datasets = Object.keys(historyCache).map((sym, i) => {
+    const hist = historyCache[sym];
+    // 첫 번째 유효한 close 값을 기준(base)으로 사용
+    const base = hist.find(d => d.close != null)?.close;
+    if (!base) return null;
+
+    // 날짜 → close 맵
+    const closeMap = {};
+    hist.forEach(d => { if (d.close != null) closeMap[d.date] = d.close; });
+
+    // 공통 날짜 기준으로 데이터 생성, 데이터 없는 날짜는 null
+    const data = allDates.map(date => ({
+      x: date,
+      y: closeMap[date] != null ? +((closeMap[date] - base) / base * 100).toFixed(2) : null
+    }));
+
+    return {
+      label: sym.split('.')[0],
+      data,
+      borderColor: COLORS[i % COLORS.length],
+      backgroundColor: COLORS[i % COLORS.length] + '18',
+      fill: false,
+      tension: .3,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      borderWidth: 2,
+      spanGaps: true  // null 구간을 건너뛰어 선을 자연스럽게 연결
+    };
   }).filter(Boolean);
 
-  if(chartInst)chartInst.destroy();
-  chartInst=new Chart(canvas,{type:'line',data:{datasets},options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,position:'top',labels:{color:'#8888aa',font:{family:'Space Mono',size:10},boxWidth:10,padding:12}},tooltip:{backgroundColor:'#1a1a26',borderColor:'#2a2a3e',borderWidth:1,titleColor:'#8888aa',bodyColor:'#e8e8f0',callbacks:{title:c=>c[0]?.raw?.x||'',label:c=>{const s=c.raw.y>=0?'+':'';return ` ${c.dataset.label}: ${s}${c.raw.y.toFixed(2)}%`;}}}},scales:{x:{type:'category',grid:{color:'rgba(42,42,62,.4)'},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},maxTicksLimit:10}},y:{grid:{color:'rgba(42,42,62,.4)'},border:{dash:[4,4]},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},callback:v=>v.toFixed(1)+'%'}}}}});
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      animation: false,  // 탭 전환 시 즉시 렌더링
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: '#8888aa', font: { family: 'Space Mono', size: 10 }, boxWidth: 10, padding: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1a26', borderColor: '#2a2a3e', borderWidth: 1,
+          titleColor: '#8888aa', bodyColor: '#e8e8f0',
+          callbacks: {
+            title: c => c[0]?.raw?.x || '',
+            label: c => {
+              if (c.raw.y == null) return null;
+              const s = c.raw.y >= 0 ? '+' : '';
+              return ` ${c.dataset.label}: ${s}${c.raw.y.toFixed(2)}%`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { type: 'category', grid: { color: 'rgba(42,42,62,.4)' }, ticks: { color: '#55556a', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 10 } },
+        y: { grid: { color: 'rgba(42,42,62,.4)' }, border: { dash: [4, 4] }, ticks: { color: '#55556a', font: { family: 'Space Mono', size: 9 }, callback: v => v.toFixed(1) + '%' } }
+      }
+    }
+  });
 }
 
 function onSlider(idx) {
