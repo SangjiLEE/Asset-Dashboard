@@ -48,9 +48,20 @@
         <option value="KRW" data-i18n="opt_krw">🇰🇷 원화 (KRW)</option>
       </select>
     </div>
+    <div class="fg"><label data-i18n="label_account">계좌</label>
+      <select id="inAccount">
+        <option value="" data-i18n="opt_no_account">계좌 없음</option>
+      </select>
+    </div>
     <div class="fg"><label data-i18n="label_price">매수가</label><input id="inPrice" type="number" placeholder="Price" /></div>
     <div class="fg"><label data-i18n="label_shares">수량 (주)</label><input id="inShares" type="number" placeholder="Shares" /></div>
     <button class="btn" id="addBtn" onclick="addHolding()" data-i18n="btn_add">+ 추가</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+    <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-family:'Space Mono',monospace;" data-i18n="label_account">계좌</label>
+    <input id="inAccountName" style="width:150px;" placeholder="키움 / 미래에셋" />
+    <button class="btn-sm" onclick="addAccount()">+ 추가</button>
+    <div id="accountTags" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
   </div>
   <div class="hint">💡 미국: AAPL · TSLA · NVDA &nbsp;|&nbsp; 한국: 005930 · 035420 · 000660</div>
 </div>
@@ -75,6 +86,7 @@
         <button class="btn-sm" onclick="loadChart()" data-i18n="btn_load">조회</button>
       </div>
     </div>
+    <div id="chartAccFilter" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
 
     <!-- Slider Panel -->
     <div class="slider-panel" id="sliderPanel">
@@ -97,6 +109,7 @@
       <div class="sec-title" data-i18n="holdings_title">보유 종목</div>
       <button class="btn-sm" onclick="refreshPrices()"><span id="refIcon">↻</span> <span data-i18n="btn_refresh">새로고침</span></button>
     </div>
+    <div id="holdAccountTabs" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;"></div>
     <div class="holdings-list" id="holdList"><div class="empty" style="padding:40px 10px;" data-i18n="empty_holdings">아직 추가된 종목이 없습니다</div></div>
   </div>
 </div>

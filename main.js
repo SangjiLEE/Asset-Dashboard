@@ -47,7 +47,13 @@ const i18n = {
     fetching_stock: "조회 중...",
     data_not_found: "데이터를 불러오지 못했습니다",
     ex_rate: "적용 환율",
-    display_currency: "표시 통화"
+    display_currency: "표시 통화",
+    label_account: "계좌",
+    opt_no_account: "계좌 없음",
+    all_accounts: "전체",
+    no_account: "미분류",
+    acc_placeholder: "계좌명 (예: 키움)",
+    toast_acc_exists: "이미 존재하는 계좌명입니다"
   },
   en: {
     title: "Portfolio Dashboard",
@@ -94,7 +100,13 @@ const i18n = {
     fetching_stock: "Fetching...",
     data_not_found: "Data not found",
     ex_rate: "Exchange Rate",
-    display_currency: "Display Unit"
+    display_currency: "Display Unit",
+    label_account: "Account",
+    opt_no_account: "No Account",
+    all_accounts: "All",
+    no_account: "Unassigned",
+    acc_placeholder: "Account name",
+    toast_acc_exists: "Account name already exists"
   }
 };
 
@@ -102,9 +114,12 @@ const i18n = {
 // STATE
 // ═══════════════════════════════════════
 let currentLang     = localStorage.getItem('ph2_lang') || 'ko';
-let displayCurrency = localStorage.getItem('ph2_display_cur') || 'KRW'; 
+let displayCurrency = localStorage.getItem('ph2_display_cur') || 'KRW';
 let holdings        = JSON.parse(localStorage.getItem('ph2_holdings') || '[]');
-let usdKrwRate      = 1350; 
+let accounts        = JSON.parse(localStorage.getItem('ph2_accounts') || '[]');
+let holdAccFilter   = 'all';        // 'all' | accountId | '__none__'
+let chartAccFilter  = new Set();    // empty = 전체, otherwise Set of accountId
+let usdKrwRate      = 1350;
 let priceCache      = {};
 let historyCache    = {};
 let chartInst = null, donutInst = null, barInst = null;
@@ -388,11 +403,12 @@ async function addHolding() {
   const currency = document.getElementById('inCurrency').value;
   const bpRaw = document.getElementById('inPrice').value;
   const shRaw = document.getElementById('inShares').value;
+  const accountId = document.getElementById('inAccount')?.value || null;
 
   if (!ticker) { toast(i18n[currentLang].toast_input_ticker,'err'); return; }
   if (!bpRaw || +bpRaw<=0) { toast(i18n[currentLang].toast_input_price,'err'); return; }
   if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
-  
+
   if (currency==='KRW' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.KS';
 
   const btn = document.getElementById('addBtn');
@@ -407,6 +423,7 @@ async function addHolding() {
       symbol: ticker, name: info.name, currency: currency,
       buyPrice: +bpRaw, shares: +shRaw,
       currentPrice: info.price, prevClose: info.prevClose,
+      accountId: accountId || null,
     });
     save(); renderAll();
     toast(`✅ ${i18n[currentLang].toast_added}`);
@@ -427,7 +444,137 @@ function removeHolding(id) {
   save(); renderAll();
 }
 
-function save() { localStorage.setItem('ph2_holdings', JSON.stringify(holdings)); }
+function save() {
+  localStorage.setItem('ph2_holdings', JSON.stringify(holdings));
+  localStorage.setItem('ph2_accounts', JSON.stringify(accounts));
+}
+
+// ═══════════════════════════════════════
+// ACCOUNT MANAGEMENT
+// ═══════════════════════════════════════
+function getAccName(id) {
+  if (!id) return i18n[currentLang].no_account;
+  return accounts.find(a => a.id === id)?.name || i18n[currentLang].no_account;
+}
+
+function getFilteredHoldings(filter) {
+  if (!filter || filter === 'all') return holdings;
+  if (filter === '__none__') return holdings.filter(h => !h.accountId);
+  return holdings.filter(h => h.accountId === filter);
+}
+
+function getChartHoldings() {
+  if (chartAccFilter.size === 0) return holdings;
+  return holdings.filter(h => {
+    if (!h.accountId) return chartAccFilter.has('__none__');
+    return chartAccFilter.has(h.accountId);
+  });
+}
+
+function addAccount() {
+  const input = document.getElementById('inAccountName');
+  const name = input?.value?.trim();
+  if (!name) return;
+  if (accounts.find(a => a.name === name)) { toast(i18n[currentLang].toast_acc_exists, 'err'); return; }
+  accounts.push({ id: 'acc_' + Date.now(), name });
+  save();
+  input.value = '';
+  renderAccountUI();
+}
+
+function removeAccount(id) {
+  accounts = accounts.filter(a => a.id !== id);
+  holdings.forEach(h => { if (h.accountId === id) h.accountId = null; });
+  if (holdAccFilter === id) holdAccFilter = 'all';
+  chartAccFilter.delete(id);
+  save();
+  renderAccountUI();
+  renderAll();
+}
+
+function setHoldAccFilter(filter) {
+  holdAccFilter = filter;
+  renderAccountTabs();
+  renderCards();
+  renderHoldings();
+  renderDonut();
+  renderBar();
+}
+
+function toggleChartAccFilter(id) {
+  // 처음 클릭 시: 전체에서 특정 계좌 제외 모드로 전환
+  if (chartAccFilter.size === 0) {
+    const allIds = accounts.map(a => a.id);
+    if (holdings.some(h => !h.accountId)) allIds.push('__none__');
+    allIds.forEach(i => chartAccFilter.add(i));
+    chartAccFilter.delete(id);
+  } else {
+    if (chartAccFilter.has(id)) {
+      chartAccFilter.delete(id);
+      // 모두 선택 상태면 Set 초기화 (= 전체 선택)
+      const allIds = accounts.map(a => a.id);
+      if (holdings.some(h => !h.accountId)) allIds.push('__none__');
+      if (allIds.every(i => chartAccFilter.has(i))) chartAccFilter.clear();
+    } else {
+      chartAccFilter.add(id);
+    }
+  }
+  renderChartAccFilter();
+  if (Object.keys(historyCache).length) drawChart();
+}
+
+function renderAccountUI() {
+  renderAccountOptions();
+  renderAccountTags();
+  renderAccountTabs();
+  renderChartAccFilter();
+}
+
+function renderAccountOptions() {
+  const sel = document.getElementById('inAccount');
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${i18n[currentLang].opt_no_account}</option>` +
+    accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+}
+
+function renderAccountTags() {
+  const el = document.getElementById('accountTags');
+  if (!el) return;
+  el.innerHTML = accounts.map((a, i) =>
+    `<span class="acc-tag" style="border-color:${COLORS[i%COLORS.length]}55;color:${COLORS[i%COLORS.length]}">
+      ${a.name}<button class="acc-tag-del" onclick="removeAccount('${a.id}')">✕</button>
+    </span>`
+  ).join('');
+}
+
+function renderAccountTabs() {
+  const el = document.getElementById('holdAccountTabs');
+  if (!el) return;
+  const hasUnassigned = holdings.some(h => !h.accountId);
+  const tabs = [{ id: 'all', name: i18n[currentLang].all_accounts }];
+  accounts.forEach(a => tabs.push({ id: a.id, name: a.name }));
+  if (hasUnassigned) tabs.push({ id: '__none__', name: i18n[currentLang].no_account });
+  el.innerHTML = tabs.map(t =>
+    `<button class="acc-tab${holdAccFilter === t.id ? ' active' : ''}" onclick="setHoldAccFilter('${t.id}')">${t.name}</button>`
+  ).join('');
+}
+
+function renderChartAccFilter() {
+  const el = document.getElementById('chartAccFilter');
+  if (!el) return;
+  if (!accounts.length) { el.style.display = 'none'; return; }
+  const hasUnassigned = holdings.some(h => !h.accountId);
+  const items = accounts.map((a, i) => ({ id: a.id, name: a.name, color: COLORS[i%COLORS.length] }));
+  if (hasUnassigned) items.push({ id: '__none__', name: i18n[currentLang].no_account, color: '#8888aa' });
+  el.style.display = 'flex';
+  el.innerHTML = items.map(item => {
+    const checked = chartAccFilter.size === 0 || chartAccFilter.has(item.id);
+    return `<label class="acc-chk">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleChartAccFilter('${item.id}')">
+      <span style="color:${item.color}">${item.name}</span>
+    </label>`;
+  }).join('');
+}
 
 // ═══════════════════════════════════════
 // CONVERSION & RENDER
@@ -441,6 +588,7 @@ function convert(val, from) {
 
 function renderAll() {
   renderCards(); renderHoldings(); renderDonut(); renderBar(); resetChartIfEmpty();
+  renderChartAccFilter();
 }
 
 function resetChartIfEmpty() {
@@ -456,7 +604,8 @@ function resetChartIfEmpty() {
 }
 
 function renderCards() {
-  if (!holdings.length) {
+  const filtered = getFilteredHoldings(holdAccFilter);
+  if (!filtered.length) {
     ['cInvested','cCurrent','cPnl','cRet'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.textContent = '—'; el.className = 'card-val'; }
@@ -464,7 +613,7 @@ function renderCards() {
     return;
   }
   let totalInv = 0, totalCur = 0;
-  holdings.forEach(h => {
+  filtered.forEach(h => {
     totalInv += convert(h.buyPrice * h.shares, h.currency);
     totalCur += convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
   });
@@ -488,20 +637,27 @@ function renderCards() {
 }
 
 function renderHoldings() {
+  renderAccountTabs();
   const el = document.getElementById('holdList');
   if (!el) return;
-  if (!holdings.length) { el.innerHTML=`<div class="empty" style="padding:40px 10px;">${i18n[currentLang].empty_holdings}</div>`; return; }
-  
-  el.innerHTML = holdings.map(h => {
+  const filtered = getFilteredHoldings(holdAccFilter);
+  if (!filtered.length) { el.innerHTML=`<div class="empty" style="padding:40px 10px;">${i18n[currentLang].empty_holdings}</div>`; return; }
+
+  el.innerHTML = filtered.map(h => {
     const pnl = h.currentPrice ? (h.currentPrice-h.buyPrice)/h.buyPrice*100 : null;
     const cls = pnl==null?'':pnl>=0?'up':'down';
     const sign= pnl==null?'':pnl>=0?'+':'';
     const isUsd = h.currency === 'USD';
     const badge = isUsd ? '<span class="badge badge-us">USD</span>' : '<span class="badge badge-kr">KRW</span>';
     
+    const accIdx = h.accountId ? accounts.findIndex(a => a.id === h.accountId) : -1;
+    const accColor = accIdx >= 0 ? COLORS[accIdx % COLORS.length] : '#8888aa';
+    const accBadge = h.accountId
+      ? `<span style="font-size:8px;font-family:'Space Mono',monospace;color:${accColor};background:${accColor}22;border:1px solid ${accColor}44;border-radius:4px;padding:1px 5px;margin-left:2px;">${getAccName(h.accountId)}</span>`
+      : '';
     return `<div class="h-item">
       <div style="flex:1; overflow:hidden;">
-        <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">${h.symbol.split('.')[0]}${badge}</div>
+        <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">${h.symbol.split('.')[0]}${badge}${accBadge}</div>
         <div class="h-name" title="${h.name}">${h.name}</div>
         <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}${currentLang==='ko'?'주':' Shares'}@${isUsd?'$':'₩'}${fNum(h.buyPrice,isUsd?2:0)}</div>
       </div>
@@ -517,20 +673,21 @@ function renderHoldings() {
 function renderDonut() {
   const canvas=document.getElementById('donut'), list=document.getElementById('allocList');
   if (!canvas || !list) return;
-  if (!holdings.length) {
+  const filtered = getFilteredHoldings(holdAccFilter);
+  if (!filtered.length) {
     list.innerHTML=`<div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;">${i18n[currentLang].empty_after_add}</div>`;
     if(donutInst){donutInst.destroy();donutInst=null;} return;
   }
-  const vals = holdings.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
+  const vals = filtered.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
   const total = vals.reduce((a,b)=>a+b,0);
-  const labels = holdings.map(h=>h.symbol.split('.')[0]);
+  const labels = filtered.map(h=>h.symbol.split('.')[0]);
   if(donutInst)donutInst.destroy();
   donutInst = new Chart(canvas, {
     type:'doughnut',
-    data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,holdings.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
+    data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,filtered.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+(ctx.raw/total*100).toFixed(1)+'%'}}}}
   });
-  list.innerHTML=holdings.map((h,i)=>{
+  list.innerHTML=filtered.map((h,i)=>{
     const pct=(vals[i]/total*100).toFixed(1);
     return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${h.symbol.split('.')[0]}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
   }).join('');
@@ -539,13 +696,14 @@ function renderDonut() {
 function renderBar() {
   const canvas=document.getElementById('barChart'), wrap=document.getElementById('barWrap');
   if (!canvas || !wrap) return;
-  if (!holdings.length) {
+  const filtered = getFilteredHoldings(holdAccFilter);
+  if (!filtered.length) {
     canvas.style.display='none'; wrap.style.display='block';
     if(barInst){barInst.destroy();barInst=null;} return;
   }
   canvas.style.display='block'; wrap.style.display='none';
-  const labels=holdings.map(h=>h.symbol.split('.')[0]);
-  const data=holdings.map(h=>h.currentPrice?+((h.currentPrice-h.buyPrice)/h.buyPrice*100).toFixed(2):0);
+  const labels=filtered.map(h=>h.symbol.split('.')[0]);
+  const data=filtered.map(h=>h.currentPrice?+((h.currentPrice-h.buyPrice)/h.buyPrice*100).toFixed(2):0);
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
   barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:'rgba(42,42,62,.5)'},ticks:{color:'#8888aa',font:{family:'Space Mono',size:10}}},y:{grid:{color:'rgba(42,42,62,.5)'},ticks:{color:'#8888aa',font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
@@ -594,16 +752,18 @@ function drawAssetChart() {
   const area=document.getElementById('chartArea'), canvas=document.getElementById('mainChart');
   if (area) area.style.display='none'; if (canvas) canvas.style.display='block';
 
-  const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
-  const allDates=[...new Set(Object.values(historyCache).flatMap(a=>a.map(d=>d.date)))].sort();
-  
+  const chartH = getChartHoldings();
+  const hMap={}; chartH.forEach(h=>hMap[h.symbol]=h);
+  const chartHistories = Object.fromEntries(Object.entries(historyCache).filter(([sym]) => hMap[sym]));
+  const allDates=[...new Set(Object.values(chartHistories).flatMap(a=>a.map(d=>d.date)))].sort();
+
   let totalInv = 0;
-  holdings.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
+  chartH.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
 
   const lastClose={};
   const assets = allDates.map(date=>{
     let tot=0, any=false;
-    for(const [sym,hist] of Object.entries(historyCache)){
+    for(const [sym,hist] of Object.entries(chartHistories)){
       const h=hMap[sym]; if(!h)continue;
       const found=hist.find(x=>x.date===date);
       if(found) lastClose[sym]=found.close;
@@ -650,12 +810,14 @@ function drawReturnChart() {
   if (area) area.style.display='none'; if (canvas) canvas.style.display='block';
   if (document.getElementById('sliderPanel')) document.getElementById('sliderPanel').style.display='none';
 
-  // 모든 종목 날짜 합집합으로 공통 x축 생성 (미국/한국 거래일 차이 해결)
+  // 계좌 필터 적용 후 공통 x축 생성 (미국/한국 거래일 차이 해결)
+  const chartSymbols = new Set(getChartHoldings().map(h => h.symbol));
+  const chartKeys = Object.keys(historyCache).filter(sym => chartSymbols.has(sym));
   const allDates = [...new Set(
-    Object.values(historyCache).flatMap(a => a.map(d => d.date))
+    chartKeys.flatMap(sym => historyCache[sym].map(d => d.date))
   )].sort();
 
-  const datasets = Object.keys(historyCache).map((sym, i) => {
+  const datasets = chartKeys.map((sym, i) => {
     const hist = historyCache[sym];
     // 첫 번째 유효한 close 값을 기준(base)으로 사용
     const base = hist.find(d => d.close != null)?.close;
@@ -721,7 +883,8 @@ function onSlider(idx) {
   const date=sliderDates[idx]; if(!date)return;
   document.getElementById('sliderDate').textContent=date;
 
-  const hMap={}; holdings.forEach(h=>hMap[h.symbol]=h);
+  const chartH = getChartHoldings();
+  const hMap={}; chartH.forEach(h=>hMap[h.symbol]=h);
   const lastClose={};
   for(let i=0;i<=idx;i++){
     const d=sliderDates[i];
@@ -731,7 +894,7 @@ function onSlider(idx) {
   }
 
   let totalAsset = 0, totalInv = 0;
-  holdings.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
+  chartH.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
 
   const chips=[];
   for(const [sym,] of Object.entries(historyCache)){
@@ -800,9 +963,14 @@ window.switchMode = switchMode;
 window.loadChart = loadChart;
 window.onSlider = onSlider;
 window.refreshPrices = refreshPrices;
+window.addAccount = addAccount;
+window.removeAccount = removeAccount;
+window.setHoldAccFilter = setHoldAccFilter;
+window.toggleChartAccFilter = toggleChartAccFilter;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await updateUsdKrwRate(); 
+  await updateUsdKrwRate();
   updateUI();
+  renderAccountUI();
   renderAll();
 });
