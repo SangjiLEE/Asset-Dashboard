@@ -199,11 +199,34 @@ setInterval(updateClock, 1000); updateClock();
 })();
 
 // ═══════════════════════════════════════
-// ULTRA-ROBUST SMART FETCHING ENGINE
+// FETCHING ENGINE
+// Primary: Firebase Cloud Functions (서버사이드, 안정적)
+// Fallback: CORS 프록시 (Firebase Functions 실패 시)
 // ═══════════════════════════════════════
+
+// Firebase Functions 인스턴스 (지연 초기화)
+let _fbFn = null;
+function getFbFn() {
+  if (!_fbFn) {
+    try { _fbFn = firebase.functions(); } catch(e) {}
+  }
+  return _fbFn;
+}
+
+// Firebase Functions 호출
+async function callFn(symbol, type, start, end) {
+  const fn = getFbFn();
+  if (!fn) throw new Error('Firebase not ready');
+  const callable = fn.httpsCallable('getStockData', { timeout: 15000 });
+  const res = await callable({ symbol, type, start, end });
+  if (!res.data) throw new Error('Empty response from function');
+  return res.data;
+}
+
+// CORS 프록시 폴백 (Firebase Functions 실패 시에만 사용)
 async function fetchWithProxy(url) {
   const q2url = url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com');
-  const isValid = (d) => d && (d.chart || d.quoteResponse || d.spark || Array.isArray(d.quotes) || Array.isArray(d));
+  const isValid = (d) => d && (d.chart || d.quoteResponse || d.spark || d.quoteSummary || Array.isArray(d.quotes) || Array.isArray(d));
   const enc = encodeURIComponent;
 
   const tryFetch = (proxyUrl, parser, name) => {
@@ -217,20 +240,60 @@ async function fetchWithProxy(url) {
         if (!isValid(data)) throw new Error('invalid response');
         return data;
       })
-      .catch(e => { clearTimeout(id); console.warn(`[Fetch] ${name}:`, e.message); throw e; });
+      .catch(e => { clearTimeout(id); console.warn(`[Proxy] ${name}:`, e.message); throw e; });
   };
 
   return Promise.any([
-    tryFetch(`https://corsproxy.io/?${enc(url)}`,   r => r.json(), 'CORS.IO/q1'),
-    tryFetch(`https://corsproxy.io/?${enc(q2url)}`,  r => r.json(), 'CORS.IO/q2'),
-    tryFetch(`https://api.allorigins.win/raw?url=${enc(url)}`,   r => r.json(), 'ALLORIGINS/q1'),
-    tryFetch(`https://api.allorigins.win/raw?url=${enc(q2url)}`,  r => r.json(), 'ALLORIGINS/q2'),
-    tryFetch(`https://api.allorigins.win/get?url=${enc(url)}`,   async r => { const j = await r.json(); return JSON.parse(j.contents); }, 'ALLORIGINS_GET'),
-  ]).catch(() => { throw new Error("Connectivity Issue: All proxy channels are unavailable."); });
+    tryFetch(`https://corsproxy.io/?${enc(url)}`,                       r => r.json(), 'CORS.IO/q1'),
+    tryFetch(`https://corsproxy.io/?${enc(q2url)}`,                      r => r.json(), 'CORS.IO/q2'),
+    tryFetch(`https://api.allorigins.win/raw?url=${enc(url)}`,            r => r.json(), 'ALLORIGINS/q1'),
+    tryFetch(`https://api.allorigins.win/raw?url=${enc(q2url)}`,           r => r.json(), 'ALLORIGINS/q2'),
+    tryFetch(`https://api.allorigins.win/get?url=${enc(url)}`,            async r => { const j = await r.json(); return JSON.parse(j.contents); }, 'ALLORIGINS_GET'),
+    tryFetch(`https://api.codetabs.com/v1/proxy?quest=${enc(url)}`,        r => r.json(), 'CODETABS/q1'),
+    tryFetch(`https://api.codetabs.com/v1/proxy?quest=${enc(q2url)}`,       r => r.json(), 'CODETABS/q2'),
+    tryFetch(`https://thingproxy.freeboard.io/fetch/${url}`,               r => r.json(), 'THINGPROXY/q1'),
+    tryFetch(`https://thingproxy.freeboard.io/fetch/${q2url}`,              r => r.json(), 'THINGPROXY/q2'),
+  ]).catch(() => { throw new Error("데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."); });
 }
 
+// Yahoo Finance 파싱 (CORS 프록시 폴백용)
+function parseYahooResponse(data, symbol, type, start) {
+  const result = data.chart?.result?.[0];
+  if (!result) throw new Error("종목 코드를 확인해 주세요: " + symbol);
+
+  if (type === 'price') {
+    const meta = result.meta;
+    return {
+      price: meta.regularMarketPrice,
+      prevClose: meta.previousClose || meta.chartPreviousClose,
+      name: symbol.split('.')[0],
+      currency: meta.currency,
+      symbol: symbol
+    };
+  } else {
+    if (!result.timestamp) return [];
+    const quotes = result.indicators?.quote?.[0]?.close;
+    if (!quotes) return [];
+    return result.timestamp.map((ts, i) => ({
+      date: new Date(ts * 1000).toISOString().split('T')[0],
+      close: quotes[i]
+    })).filter(d => d.close != null);
+  }
+}
+
+// 통합 데이터 조회: Firebase Functions → CORS 프록시 순서로 시도
 async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
-  let url = "";
+  // 1차: Firebase Cloud Functions (서버사이드, 신뢰성 높음)
+  try {
+    const data = await callFn(symbol, type, start, end);
+    console.log(`[Firebase Fn] ${type} ${symbol} ✓`);
+    return data;
+  } catch (e) {
+    console.warn(`[Firebase Fn] ${type} ${symbol} failed, using proxy:`, e.message);
+  }
+
+  // 2차: CORS 프록시 폴백
+  let url;
   if (type === 'price') {
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
   } else {
@@ -238,33 +301,19 @@ async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
     const p2 = Math.floor(new Date(end).getTime() / 1000);
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
   }
-
-  const data = await fetchWithProxy(url);
-  const result = data.chart?.result?.[0];
-  if (!result) throw new Error("Invalid Stock Code");
-
-  if (type === 'price') {
-    const meta = result.meta;
-    return {
-      price: meta.regularMarketPrice,
-      prevClose: meta.previousClose || meta.chartPreviousClose,
-      name: symbol.split('.')[0], 
-      currency: meta.currency,
-      symbol: symbol
-    };
-  } else {
-    if (!result.timestamp) return [];
-    const timestamps = result.timestamp;
-    const quotes = result.indicators?.quote?.[0]?.close;
-    if (!quotes) return [];
-    return timestamps.map((ts, i) => ({
-      date: new Date(ts * 1000).toISOString().split('T')[0],
-      close: quotes[i]
-    })).filter(d => d.close != null);
-  }
+  const raw = await fetchWithProxy(url);
+  return parseYahooResponse(raw, symbol, type, start);
 }
 
+// 종목명 조회: Firebase Functions → CORS 프록시 순서
 async function fetchStockName(symbol) {
+  // 1차: Firebase Functions search
+  try {
+    const data = await callFn(symbol, 'search');
+    if (data?.name && data.name !== symbol) return data.name;
+  } catch (e) {}
+
+  // 2차: CORS 프록시 search 폴백
   try {
     const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
     const data = await fetchWithProxy(url);
@@ -275,15 +324,40 @@ async function fetchStockName(symbol) {
   }
 }
 
+// 환율 조회: open.er-api.com (CORS 허용, 무료, 키 불필요) → Yahoo Finance 폴백
 async function updateUsdKrwRate() {
+  // 1차: open.er-api.com (실시간 환율, CORS 직접 지원)
+  try {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch('https://open.er-api.com/v6/latest/USD', { signal: ctrl.signal });
+    clearTimeout(id);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.result === 'success' && data.rates?.KRW) {
+        usdKrwRate = data.rates.KRW;
+        updateExchangeRateDisplay();
+        renderAll();
+        console.log(`[Exchange Rate] 1 USD = ₩${usdKrwRate} (open.er-api)`);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[Exchange Rate] open.er-api failed:', e.message);
+  }
+
+  // 2차: Yahoo Finance via Firebase Functions
   try {
     const data = await fetchFromYahoo('USDKRW=X', 'price');
-    if (data && data.price) {
+    if (data?.price) {
       usdKrwRate = data.price;
       updateExchangeRateDisplay();
       renderAll();
+      console.log(`[Exchange Rate] 1 USD = ₩${usdKrwRate} (Yahoo Finance)`);
     }
-  } catch (e) { console.error("Exchange rate fetch failed"); }
+  } catch (e) {
+    console.error('[Exchange Rate] All methods failed, using cached rate:', usdKrwRate);
+  }
 }
 
 async function fetchPrice(symbol) {
@@ -294,7 +368,8 @@ async function fetchPrice(symbol) {
     fetchFromYahoo(symbol, 'price'),
     fetchStockName(symbol)
   ]);
-  r.name = name;
+  // Firebase Functions는 이미 실제 이름 반환, 아닌 경우 search 결과 사용
+  r.name = (name && name !== symbol.split('.')[0]) ? name : r.name;
   priceCache[symbol] = { data: r, ts: Date.now() };
   return r;
 }

@@ -4,7 +4,6 @@ const yahooFinance = require("yahoo-finance2").default;
 
 admin.initializeApp();
 
-// HTTP callable function to get stock data
 exports.getStockData = functions.https.onCall(async (data, context) => {
   const { symbol, type, start, end } = data;
 
@@ -22,9 +21,10 @@ exports.getStockData = functions.https.onCall(async (data, context) => {
         currency: result.currency,
         symbol: symbol
       };
+
     } else if (type === "history") {
       if (!start || !end) {
-        throw new functions.https.HttpsError("invalid-argument", "Start and End dates are required for history");
+        throw new functions.https.HttpsError("invalid-argument", "Start and End are required for history");
       }
       const result = await yahooFinance.historical(symbol, {
         period1: start,
@@ -34,9 +34,20 @@ exports.getStockData = functions.https.onCall(async (data, context) => {
         date: d.date.toISOString().split('T')[0],
         close: d.close
       }));
+
+    } else if (type === "search") {
+      const result = await yahooFinance.search(symbol);
+      const quote = result.quotes?.[0];
+      return {
+        name: quote ? (quote.longname || quote.shortname || symbol) : symbol
+      };
+
+    } else {
+      throw new functions.https.HttpsError("invalid-argument", "Unknown type: " + type);
     }
+
   } catch (error) {
-    console.error("Yahoo Finance Error:", error);
+    console.error(`[${type}] ${symbol}:`, error.message);
     throw new functions.https.HttpsError("internal", error.message);
   }
 });
