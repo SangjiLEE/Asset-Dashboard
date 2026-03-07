@@ -1113,9 +1113,11 @@ function renderBar() {
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
   const ct = getChartTheme();
-  const rowH = 44;
-  canvas.style.height = Math.max(120, filtered.length * rowH) + 'px';
-  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}}}}});
+  const minBarW = 56;
+  const minW = filtered.length * minBarW;
+  canvas.style.width = Math.max(minW, scrollWrap.parentElement.clientWidth - 44) + 'px';
+  canvas.style.height = '180px';
+  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:false,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
 }
 
 // ═══════════════════════════════════════

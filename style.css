@@ -101,8 +101,7 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 /* Chart area */
 #chartArea{min-height:220px;display:flex;align-items:center;justify-content:center;}
 #mainChart{cursor:crosshair;}
-#barScrollWrap{border-radius:6px;}
-#barScrollWrap::-webkit-scrollbar{width:4px;}
+#barScrollWrap::-webkit-scrollbar{height:4px;}
 #barScrollWrap::-webkit-scrollbar-track{background:transparent;}
 #barScrollWrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 #barScrollWrap::-webkit-scrollbar-thumb:hover{background:var(--text3);}
