@@ -921,9 +921,15 @@ async function loadChart() {
   historyCache={};
 
   const results = await Promise.allSettled(holdings.map(h => fetchHistory(h.symbol, start, end)));
+  const failed = [];
   results.forEach((r, i) => {
-    if (r.status === 'fulfilled' && r.value.length > 0) historyCache[holdings[i].symbol] = r.value;
+    if (r.status === 'fulfilled' && r.value.length > 0) {
+      historyCache[holdings[i].symbol] = r.value;
+    } else {
+      failed.push(holdings[i].symbol);
+    }
   });
+  if (failed.length) toast(`⚠️ 데이터 없음: ${failed.join(', ')}`, 'err');
 
   if (!Object.keys(historyCache).length) {
     if (area) area.innerHTML=`<div class="empty">${i18n[currentLang].data_not_found}<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻</button></div>`;
