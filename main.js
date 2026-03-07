@@ -602,6 +602,7 @@ async function addHolding() {
   if (!shRaw || +shRaw<=0) { toast(i18n[currentLang].toast_input_shares,'err'); return; }
 
   if (currency==='KRW' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.KS';
+  if (currency==='JPY' && !ticker.includes('.') && /^\d+$/.test(ticker)) ticker += '.T';
 
   const btn = document.getElementById('addBtn');
   btn.disabled = true;
