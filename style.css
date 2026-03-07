@@ -271,3 +271,9 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 .footer-links a{color:var(--accent);text-decoration:none;transition:.15s;}
 .footer-links a:hover{text-decoration:underline;}
 .footer-links span{color:var(--text3);}
+.footer-contact-btn{background:none;border:none;color:var(--accent);font-size:11px;font-family:'Space Mono',monospace;cursor:pointer;padding:0;transition:.15s;}
+.footer-contact-btn:hover{text-decoration:underline;}
+
+/* Contact Modal Textarea */
+#contactMessage{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;transition:.15s;}
+#contactMessage:focus{border-color:var(--accent2);}

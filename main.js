@@ -73,7 +73,17 @@ const i18n = {
     intro_title3: "클라우드 동기화",
     intro_desc3: "Google 계정으로 로그인하면 PC, 태블릿, 스마트폰 어디서든 동일한 포트폴리오 데이터를 확인할 수 있습니다.",
     footer_desc: "미국·한국 주식 포트폴리오를 무료로 관리하세요. 실시간 주가, 수익률 차트, 자산 배분 분석을 제공합니다.",
-    footer_privacy: "개인정보처리방침"
+    footer_privacy: "개인정보처리방침",
+    footer_contact: "문의하기",
+    contact_title: "문의하기",
+    contact_desc: "궁금한 점이나 개선 사항을 보내주세요. 빠르게 답변 드리겠습니다.",
+    contact_email: "이메일",
+    contact_subject: "제목",
+    contact_message: "내용",
+    contact_send: "보내기",
+    contact_cancel: "닫기",
+    contact_ok: "문의가 접수되었습니다. 감사합니다!",
+    contact_err: "전송에 실패했습니다. 다시 시도해 주세요."
   },
   en: {
     title: "Portfolio Dashboard",
@@ -146,7 +156,17 @@ const i18n = {
     intro_title3: "Cloud Sync",
     intro_desc3: "Sign in with Google to access your portfolio from any device — PC, tablet, or smartphone.",
     footer_desc: "Free portfolio tracker for US & Korean stocks. Real-time prices, return charts, and allocation analysis.",
-    footer_privacy: "Privacy Policy"
+    footer_privacy: "Privacy Policy",
+    footer_contact: "Contact",
+    contact_title: "Contact Us",
+    contact_desc: "Send us your questions or feedback. We'll get back to you as soon as possible.",
+    contact_email: "Email",
+    contact_subject: "Subject",
+    contact_message: "Message",
+    contact_send: "Send",
+    contact_cancel: "Close",
+    contact_ok: "Your message has been sent. Thank you!",
+    contact_err: "Failed to send. Please try again."
   }
 };
 
@@ -614,6 +634,47 @@ function signupWithEmail() {
 
 function logout() {
   firebase.auth().signOut();
+}
+
+function openContactModal() {
+  const m = document.getElementById('contactModal');
+  if (m) { m.style.display = 'flex'; document.getElementById('contactStatus').textContent = ''; }
+}
+function closeContactModal() {
+  const m = document.getElementById('contactModal');
+  if (m) {
+    m.style.display = 'none';
+    document.getElementById('contactForm').reset();
+    document.getElementById('contactStatus').textContent = '';
+  }
+}
+async function submitContact(e) {
+  e.preventDefault();
+  const btn = document.getElementById('contactSubmitBtn');
+  const status = document.getElementById('contactStatus');
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const res = await fetch('https://formspree.io/f/mbdzjwez', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      body: new FormData(document.getElementById('contactForm'))
+    });
+    if (res.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = i18n[currentLang].contact_ok;
+      document.getElementById('contactForm').reset();
+      setTimeout(closeContactModal, 2500);
+    } else {
+      status.style.color = 'var(--red)';
+      status.textContent = i18n[currentLang].contact_err;
+    }
+  } catch {
+    status.style.color = 'var(--red)';
+    status.textContent = i18n[currentLang].contact_err;
+  }
+  btn.disabled = false;
+  btn.textContent = i18n[currentLang].contact_send;
 }
 
 function openLoginModal() {

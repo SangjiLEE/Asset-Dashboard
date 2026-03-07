@@ -183,7 +183,7 @@
     <div class="footer-links">
       <a href="/privacy-policy.html" data-i18n="footer_privacy">개인정보처리방침</a>
       <span>·</span>
-      <a href="https://github.com/SangjiLEE/Asset-Dashboard" target="_blank" rel="noopener">GitHub</a>
+      <button class="footer-contact-btn" onclick="openContactModal()" data-i18n="footer_contact">문의하기</button>
       <span>·</span>
       <span style="color:var(--text3);">© 2025 Portfolio Dashboard</span>
     </div>
@@ -191,6 +191,33 @@
 </footer>
 
 <div class="toast" id="toast"></div>
+
+<!-- Contact Modal -->
+<div class="modal-overlay" id="contactModal" style="display:none;" onclick="if(event.target===this)closeContactModal()">
+  <div class="modal-box">
+    <div class="modal-title" data-i18n="contact_title">문의하기</div>
+    <div class="modal-desc" data-i18n="contact_desc">궁금한 점이나 개선 사항을 보내주세요. 빠르게 답변 드리겠습니다.</div>
+    <form id="contactForm" action="https://formspree.io/f/mbdzjwez" method="POST" onsubmit="submitContact(event)">
+      <div class="fg" style="margin-bottom:10px;">
+        <label data-i18n="contact_email">이메일</label>
+        <input type="email" name="email" id="contactEmail" placeholder="email@example.com" required>
+      </div>
+      <div class="fg" style="margin-bottom:10px;">
+        <label data-i18n="contact_subject">제목</label>
+        <input type="text" name="subject" id="contactSubject" placeholder="문의 제목" required>
+      </div>
+      <div class="fg" style="margin-bottom:16px;">
+        <label data-i18n="contact_message">내용</label>
+        <textarea name="message" id="contactMessage" rows="5" placeholder="문의 내용을 입력해 주세요." required style="resize:vertical;min-height:100px;"></textarea>
+      </div>
+      <div id="contactStatus" style="font-size:11px;min-height:18px;margin-bottom:10px;font-family:'Space Mono',monospace;"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="btn" style="flex:1;" id="contactSubmitBtn" data-i18n="contact_send">보내기</button>
+        <button type="button" class="btn-sm" style="flex:1;padding:9px;" onclick="closeContactModal()" data-i18n="contact_cancel">닫기</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- Login Modal -->
 <div class="modal-overlay" id="loginModal" style="display:none;" onclick="if(event.target===this)closeLoginModal()">
