@@ -966,12 +966,16 @@ function renderBar() {
     if(barInst){barInst.destroy();barInst=null;} return;
   }
   canvas.style.display='block'; wrap.style.display='none';
-  const labels=filtered.map(h=>h.symbol.split('.')[0]);
+  const labels=filtered.map(h=>{
+    const sym=h.symbol.split('.')[0];
+    const accName=accounts.find(a=>a.id===h.accountId)?.name||null;
+    return accName?[sym,accName]:[sym];
+  });
   const data=filtered.map(h=>h.currentPrice?+((h.currentPrice-h.buyPrice)/h.buyPrice*100).toFixed(2):0);
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
   const ct = getChartTheme();
-  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
+  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
 }
 
 // ═══════════════════════════════════════
