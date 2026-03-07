@@ -1096,14 +1096,14 @@ function renderDonut() {
 }
 
 function renderBar() {
-  const canvas=document.getElementById('barChart'), wrap=document.getElementById('barWrap');
+  const canvas=document.getElementById('barChart'), wrap=document.getElementById('barWrap'), scrollWrap=document.getElementById('barScrollWrap');
   if (!canvas || !wrap) return;
   const filtered = getFilteredHoldings(holdAccFilter);
   if (!filtered.length) {
-    canvas.style.display='none'; wrap.style.display='block';
+    scrollWrap.style.display='none'; wrap.style.display='block';
     if(barInst){barInst.destroy();barInst=null;} return;
   }
-  canvas.style.display='block'; wrap.style.display='none';
+  scrollWrap.style.display='block'; wrap.style.display='none';
   const labels=filtered.map(h=>{
     const sym=h.symbol.split('.')[0];
     const accName=accounts.find(a=>a.id===h.accountId)?.name||null;
@@ -1113,7 +1113,9 @@ function renderBar() {
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
   const ct = getChartTheme();
-  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
+  const rowH = 44;
+  canvas.style.height = Math.max(120, filtered.length * rowH) + 'px';
+  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}}}}});
 }
 
 // ═══════════════════════════════════════
