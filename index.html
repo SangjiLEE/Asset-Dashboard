@@ -13,21 +13,25 @@
 
 <header>
   <div class="logo" id="logo">포트폴리오 <span>대시보드</span></div>
-  <div style="display:flex;align-items:center;gap:12px;">
-    <div id="exRateDisplay" style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); background:rgba(0,212,170,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(0,212,170,0.2);"></div>
-    <div class="lang-switch">
-      <div style="font-size:9px; color:var(--text3); margin-right:4px; align-self:center;" data-i18n="display_currency">표시 통화</div>
-      <button class="lang-btn active" id="cur-krw" onclick="setDisplayCurrency('KRW')">KRW</button>
-      <button class="lang-btn" id="cur-usd" onclick="setDisplayCurrency('USD')">USD</button>
+  <div class="header-controls">
+    <div class="header-meta">
+      <div id="exRateDisplay" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);background:rgba(0,212,170,0.1);padding:4px 10px;border-radius:6px;border:1px solid rgba(0,212,170,0.2);"></div>
+      <span style="font-size:11px;color:var(--text3);" data-i18n="ai_sync"><span class="pulse"></span>AI 데이터 연동</span>
+      <div class="htime" id="htime"></div>
     </div>
-    <div class="lang-switch">
-      <button class="lang-btn active" id="lang-ko" onclick="changeLang('ko')">KO</button>
-      <button class="lang-btn" id="lang-en" onclick="changeLang('en')">EN</button>
+    <div class="header-actions">
+      <div class="lang-switch">
+        <div class="cur-label" style="font-size:9px;color:var(--text3);margin-right:4px;align-self:center;" data-i18n="display_currency">표시 통화</div>
+        <button class="lang-btn active" id="cur-krw" onclick="setDisplayCurrency('KRW')">KRW</button>
+        <button class="lang-btn" id="cur-usd" onclick="setDisplayCurrency('USD')">USD</button>
+      </div>
+      <div class="lang-switch">
+        <button class="lang-btn active" id="lang-ko" onclick="changeLang('ko')">KO</button>
+        <button class="lang-btn" id="lang-en" onclick="changeLang('en')">EN</button>
+      </div>
+      <button class="theme-btn" id="themeToggle" onclick="toggleTheme()" title="라이트/다크 모드"></button>
+      <div id="loginArea"></div>
     </div>
-    <button class="theme-btn" id="themeToggle" onclick="toggleTheme()" title="라이트/다크 모드"></button>
-    <span style="font-size:11px;color:var(--text3);" data-i18n="ai_sync"><span class="pulse"></span>AI 데이터 연동</span>
-    <div id="loginArea"></div>
-    <div class="htime" id="htime"></div>
   </div>
 </header>
 

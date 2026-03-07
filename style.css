@@ -181,9 +181,64 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 .user-avatar-init{width:26px;height:26px;border-radius:50%;background:var(--accent2);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;flex-shrink:0;}
 .user-name{font-size:11px;color:var(--text2);font-family:'Space Mono',monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
+/* ─── Header layout ─── */
+.header-controls{display:flex;align-items:center;gap:12px;}
+.header-meta{display:flex;align-items:center;gap:12px;}
+.header-actions{display:flex;align-items:center;gap:10px;}
+
+/* ─── Tablet 900px ─── */
 @media(max-width:900px){
+  .wrap{padding:16px;}
   .cards{grid-template-columns:repeat(2,1fr);}
   .main-grid{grid-template-columns:1fr;}
-  .form-row{grid-template-columns:1fr 1fr;}
+  .form-row{grid-template-columns:1fr 1fr 1fr;}
   .bottom-grid{grid-template-columns:1fr;}
+  .sec-hdr{flex-wrap:wrap;gap:8px;}
+  .holdings-list{max-height:260px;}
+}
+
+/* ─── Mobile 600px ─── */
+@media(max-width:600px){
+  .wrap{padding:12px;}
+  .logo{font-size:15px;}
+  .header-meta{display:none;}
+  .header-controls{gap:8px;}
+  .header-actions{gap:6px;}
+  .cur-label{display:none;}
+  .htime{display:none;}
+
+  .cards{gap:10px;margin-bottom:14px;}
+  .card{padding:13px 14px;}
+  .card-val{font-size:18px;}
+  .card-label{font-size:9px;}
+
+  .add-form{padding:14px;}
+  .form-row{grid-template-columns:1fr 1fr;gap:8px;}
+
+  .chart-card,.holdings-card{padding:16px;}
+  .holdings-list{max-height:none;}
+  .sec-hdr{flex-wrap:wrap;gap:8px;}
+  .slider-stats{gap:8px;}
+
+  .bottom-grid{gap:12px;}
+
+  input:not([type=range]):not([type=date]),select{font-size:16px;}
+  .user-name{display:none;}
+  header{margin-bottom:18px;padding-bottom:14px;}
+}
+
+/* ─── Small phone 480px ─── */
+@media(max-width:480px){
+  .wrap{padding:10px;}
+  .cards{gap:8px;}
+  .card{padding:12px;}
+  .card-val{font-size:16px;}
+
+  .form-row{grid-template-columns:1fr 1fr;}
+  #addBtn{grid-column:span 2;}
+
+  .slider-stats{grid-template-columns:repeat(2,1fr);}
+  .chip{min-width:90px;}
+
+  header{margin-bottom:14px;padding-bottom:12px;}
 }
