@@ -104,7 +104,7 @@
 
 <!-- Add Form -->
 <div class="add-form">
-  <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;" data-i18n="add_title">종목 추가</div>
+  <div class="form-section-title" data-i18n="add_title">종목 추가</div>
   <div class="form-row">
     <div class="fg"><label data-i18n="label_ticker">종목 코드</label><input id="inTicker" placeholder="AAPL / 005930 / 7203" /></div>
     <div class="fg"><label data-i18n="label_currency">통화</label>
@@ -123,13 +123,13 @@
     <div class="fg"><label data-i18n="label_shares">수량 (주)</label><input id="inShares" type="number" placeholder="Shares" /></div>
     <button class="btn" id="addBtn" onclick="addHolding()" data-i18n="btn_add">+ 추가</button>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-    <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-family:'Space Mono',monospace;" data-i18n="label_account">계좌</label>
-    <input id="inAccountName" style="width:150px;" placeholder="키움 / 미래에셋" />
+  <div class="account-add-row">
+    <label class="account-add-label" data-i18n="label_account">계좌</label>
+    <input id="inAccountName" class="account-add-input" placeholder="키움 / 미래에셋" />
     <button class="btn-sm" onclick="addAccount()">+ 추가</button>
     <div id="accountTags" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
   </div>
-  <div class="hint">💡 미국: AAPL · TSLA · NVDA &nbsp;|&nbsp; 한국: 005930 · 035420 · 000660 &nbsp;|&nbsp; 일본: 7203 · 6758 · 9984</div>
+  <div class="hint">💡 미국: AAPL · TSLA · NVDA<br class="hint-br"> 한국: 005930 · 035420 · 000660<br class="hint-br"> 일본: 7203 · 6758 · 9984</div>
 </div>
 
 <!-- Main -->
@@ -146,9 +146,9 @@
         </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <input type="date" id="dStart" style="font-size:10px;padding:4px 8px;width:120px;">
+        <input type="date" id="dStart" class="date-input">
         <span style="color:var(--text3);font-size:10px;">—</span>
-        <input type="date" id="dEnd" style="font-size:10px;padding:4px 8px;width:120px;">
+        <input type="date" id="dEnd" class="date-input">
         <button class="btn-sm" onclick="loadChart()" data-i18n="btn_load">조회</button>
       </div>
     </div>

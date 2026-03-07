@@ -54,7 +54,13 @@ select option{background:var(--surface2);}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
 .btn-sm{background:none;border:1px solid var(--border);color:var(--text2);font-family:'Space Mono',monospace;font-size:11px;padding:5px 12px;border-radius:6px;cursor:pointer;transition:.15s;}
 .btn-sm:hover{border-color:var(--accent2);color:var(--accent2);}
-.hint{font-size:10px;color:var(--text3);margin-top:8px;font-family:'Space Mono',monospace;}
+.hint{font-size:10px;color:var(--text3);margin-top:8px;font-family:'Space Mono',monospace;line-height:1.8;}
+.hint-br{display:none;}
+.form-section-title{font-family:'Space Mono',monospace;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;}
+.account-add-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+.account-add-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-family:'Space Mono',monospace;}
+.account-add-input{width:150px !important;}
+.date-input{font-size:10px;padding:4px 8px;width:120px;}
 
 /* Main grid */
 .main-grid{display:grid;grid-template-columns:1fr 340px;gap:18px;margin-bottom:18px;}
@@ -249,6 +255,17 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
   .chart-card,.holdings-card{padding:14px;}
   .holdings-list{max-height:none;}
 
+  /* 종목추가 폼 */
+  .form-section-title{font-size:10px;margin-bottom:10px;}
+  .account-add-row{gap:6px;}
+  .account-add-input{width:100% !important;flex:1;min-width:0;}
+  .date-input{font-size:16px;padding:6px 8px;width:100%;flex:1;}
+  .hint-br{display:inline;}
+  .hint{font-size:9px;}
+
+  /* 날짜 조회 영역 */
+  .sec-hdr > div:last-child{width:100%;justify-content:flex-start;flex-wrap:wrap;}
+
   /* 히어로/인트로 */
   .hero-banner{padding:20px 16px;margin-bottom:12px;}
   .hero-headline{font-size:18px;line-height:1.45;}
@@ -302,6 +319,10 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
   /* 헤더 */
   header{margin-bottom:12px;padding-bottom:10px;}
   .logo{font-size:13px;}
+
+  /* 폼 */
+  .form-section-title{font-size:9px;}
+  .account-add-label{font-size:9px;}
 
   /* 언어/통화 스위처 더 작게 */
   .lang-switch{padding:1px;gap:1px;}
