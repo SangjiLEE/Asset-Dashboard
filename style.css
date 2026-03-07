@@ -86,6 +86,7 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 
 /* Chart area */
 #chartArea{min-height:220px;display:flex;align-items:center;justify-content:center;}
+#mainChart{cursor:crosshair;}
 .empty{text-align:center;font-family:'Space Mono',monospace;font-size:11px;color:var(--text3);line-height:2.2;}
 
 /* Holdings */

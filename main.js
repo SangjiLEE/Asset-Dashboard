@@ -982,8 +982,20 @@ function drawAssetChart() {
       {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInv*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
     ]},
     options:{
-      responsive:true,animation:false,interaction:{mode:'none'},
-      plugins:{legend:{display:true,position:'top',labels:{color:ct.legend,font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},tooltip:{enabled:false}},
+      responsive:true,animation:false,interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:ct.legend,font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},
+        tooltip:{enabled:false},
+      },
+      onClick:(e)=>{
+        if(!chartInst)return;
+        const pts=chartInst.getElementsAtEventForMode(e.native,'index',{intersect:false},true);
+        if(!pts.length)return;
+        const idx=pts[0].index;
+        const sl=document.getElementById('dateSlider');
+        if(sl){sl.value=idx;onSlider(idx);}
+        document.getElementById('sliderPanel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+      },
       scales:{
         x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
         y:{max:yMax,grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
