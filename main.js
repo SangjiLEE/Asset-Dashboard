@@ -993,16 +993,21 @@ function drawAssetChart() {
         const tip=document.getElementById('chartTooltip');
         const pts=chartInst.getElementsAtEventForMode(e.native,'index',{intersect:false},true);
         if(!pts.length){ if(tip) tip.style.display='none'; return; }
-        const idx=pts[0].index;
-        const date=allDates[idx];
+
+        // dataset 1(투자금액선)은 allDates 전체를 가지므로 인덱스가 정확히 일치
+        const pt=pts.find(p=>p.datasetIndex===1)||pts[0];
+        const clickedDate=chartInst.data.datasets[pt.datasetIndex]?.data[pt.index]?.x;
+        if(!clickedDate) return;
+        const allDateIdx=allDates.indexOf(clickedDate);
+        if(allDateIdx<0) return;
 
         // 슬라이더 패널도 같이 업데이트
         const sl=document.getElementById('dateSlider');
-        if(sl){sl.value=idx;onSlider(idx);}
+        if(sl){sl.value=allDateIdx;onSlider(allDateIdx);}
 
         // 해당 날짜까지의 종가 재계산
         const lc={};
-        for(let i=0;i<=idx;i++){
+        for(let i=0;i<=allDateIdx;i++){
           for(const [s,hist] of Object.entries(chartHistories)){
             const f=hist.find(x=>x.date===allDates[i]); if(f) lc[s]=f.close;
           }
@@ -1025,12 +1030,12 @@ function drawAssetChart() {
 
         if(!tip)return;
         tip.innerHTML=`
-          <div class="ctt-date">${date}</div>
+          <div class="ctt-date">${clickedDate}</div>
           ${rows.map(r=>`<div class="ctt-row"><span class="ctt-sym">${r.sym}</span><span class="ctt-val" style="${clr(r.pct)}">${sign(r.pct)}${r.pct.toFixed(1)}%</span></div>`).join('')}
           <div class="ctt-total"><span>Total</span><span style="${clr(totalPct)}">${sign(totalPct)}${totalPct.toFixed(1)}%</span></div>`;
 
-        // 위치 계산 (차트 카드 기준)
-        const xPx=(chartInst.getDatasetMeta(0).data[idx]?.x)??chartInst.chartArea.left;
+        // 위치 계산: scales.x.getPixelForValue로 정확한 x 픽셀 획득
+        const xPx=chartInst.scales.x.getPixelForValue(clickedDate)??chartInst.chartArea.left;
         const canvasRect=canvas.getBoundingClientRect();
         const cardRect=canvas.closest('.chart-card').getBoundingClientRect();
         const cArea=chartInst.chartArea;
