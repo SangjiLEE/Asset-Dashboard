@@ -154,7 +154,7 @@ const i18n = {
     intro_title2: "Return Charts",
     intro_desc2: "Visualize asset trends and per-stock returns with interactive charts. Select any date to see your portfolio snapshot.",
     intro_title3: "Cloud Sync",
-    intro_desc3: "Sign in with Google to access your portfolio from any device — PC, tablet, or smartphone.",
+    intro_desc3: "Sign in to manage your portfolio from any device — PC, tablet, or smartphone.",
     footer_desc: "Free portfolio tracker for US & Korean stocks. Real-time prices, return charts, and allocation analysis.",
     footer_privacy: "Privacy Policy",
     footer_contact: "Contact",
