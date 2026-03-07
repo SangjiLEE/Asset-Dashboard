@@ -960,6 +960,8 @@ function drawAssetChart() {
 
   const sym = displayCurrency === 'KRW' ? '₩' : '$';
   const ct = getChartTheme();
+  const maxAsset = Math.max(...assets.filter(v => v != null), totalInv);
+  const yMax = maxAsset * 1.5;
   if(chartInst)chartInst.destroy();
   chartInst=new Chart(canvas,{
     type:'line',
@@ -973,7 +975,7 @@ function drawAssetChart() {
       plugins:{legend:{display:true,position:'top',labels:{color:ct.legend,font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},tooltip:{enabled:false}},
       scales:{
         x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
-        y:{grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
+        y:{max:yMax,grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
       },
     }
   });
