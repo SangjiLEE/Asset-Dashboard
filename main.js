@@ -284,6 +284,7 @@ function changeLang(lang) {
   localStorage.setItem('ph2_lang', lang);
   updateUI();
   renderAll();
+  if (Object.keys(historyCache).length) drawChart();
 }
 
 function setDisplayCurrency(cur) {
