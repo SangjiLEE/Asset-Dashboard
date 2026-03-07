@@ -108,7 +108,9 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 #barScrollWrap::-webkit-scrollbar-track{background:transparent;}
 #barScrollWrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 #barScrollWrap::-webkit-scrollbar-thumb:hover{background:var(--text3);}
-#barInner{width:100%;}
+#barInner{width:100%;height:200px;}
+@media(max-width:768px){#barInner{height:180px;}}
+@media(max-width:480px){#barInner{height:160px;}}
 
 .empty{text-align:center;font-family:'Space Mono',monospace;font-size:11px;color:var(--text3);line-height:2.2;}
 
@@ -320,9 +322,10 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
   .form-section-title{font-size:9px;}
   .account-add-label{font-size:9px;}
 
-  /* 도넛 차트 더 작게 */
-  #donutGrid{grid-template-columns:110px 1fr !important;gap:8px !important;}
-  #donutCanvasWrap{width:110px !important;height:110px !important;}
+  /* 도넛 차트: 세로 스택 (도넛 위, 리스트 아래) */
+  #donutGrid{grid-template-columns:1fr !important;justify-items:center;gap:14px !important;}
+  #donutCanvasWrap{width:160px !important;height:160px !important;}
+  #allocList{width:100%;}
 
   /* 언어/통화 스위처 더 작게 */
   .lang-switch{padding:1px;gap:1px;}
