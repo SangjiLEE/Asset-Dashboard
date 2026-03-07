@@ -1114,7 +1114,8 @@ function renderBar() {
   if(barInst)barInst.destroy();
   const ct = getChartTheme();
   const perBarW = 80;
-  barInner.style.minWidth = filtered.length * perBarW + 'px';
+  const containerW = scrollWrap.clientWidth || scrollWrap.closest('.chart-card')?.clientWidth || 300;
+  barInner.style.width = Math.max(containerW, filtered.length * perBarW) + 'px';
   barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:ctx=>{const l=labels[ctx[0].dataIndex];return Array.isArray(l)?l.join(' · '):l;},label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:9}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
 }
 

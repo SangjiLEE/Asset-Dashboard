@@ -102,8 +102,12 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 #chartArea{min-height:220px;display:flex;align-items:center;justify-content:center;}
 #mainChart{cursor:crosshair;}
 
+/* Grid items: prevent tracks from expanding beyond allocated size */
+.bottom-grid > .chart-card,.main-grid > .chart-card,.main-grid > .holdings-card{min-width:0;}
+.bottom-grid > .chart-card{overflow:hidden;}
+
 /* Bar chart scroll */
-#barScrollWrap{scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+#barScrollWrap{width:100%;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
 #barScrollWrap::-webkit-scrollbar{height:4px;}
 #barScrollWrap::-webkit-scrollbar-track{background:transparent;}
 #barScrollWrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
