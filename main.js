@@ -366,8 +366,11 @@ function updateUI() {
 function updateExchangeRateDisplay() {
   const el = document.getElementById('exRateDisplay');
   if (!el) return;
-  if (displayCurrency === 'JPY') el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ¥${fNum(usdJpyRate, 1)}`;
-  else el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
+  if (displayCurrency === 'JPY' || currentLang === 'ja') {
+    el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ¥${fNum(usdJpyRate, 1)}`;
+  } else {
+    el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
+  }
 }
 
 window.changeLang = changeLang;
