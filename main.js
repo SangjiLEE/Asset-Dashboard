@@ -970,6 +970,16 @@ function drawAssetChart() {
     return any?tot:null;
   });
 
+  // 날짜별 종가 사전 계산 (호버 시 빠른 조회용)
+  const closeByDate = {};
+  const runningClose = {};
+  for(const date of allDates){
+    for(const [s,hist] of Object.entries(chartHistories)){
+      const f=hist.find(x=>x.date===date); if(f) runningClose[s]=f.close;
+    }
+    closeByDate[date]={...runningClose};
+  }
+
   const sym = displayCurrency === 'KRW' ? '₩' : '$';
   const ct = getChartTheme();
   const maxAsset = Math.max(...assets.filter(v => v != null), totalInv);
@@ -986,65 +996,62 @@ function drawAssetChart() {
       responsive:true,animation:false,interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:true,position:'top',labels:{color:ct.legend,font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},
-        tooltip:{enabled:false},
+        tooltip:{
+          enabled:false,
+          external:(context)=>{
+            const {chart,tooltip}=context;
+            const tip=document.getElementById('chartTooltip');
+            if(!tip)return;
+            if(tooltip.opacity===0||!tooltip.dataPoints?.length){tip.style.display='none';return;}
+
+            const dp=tooltip.dataPoints.find(p=>p.datasetIndex===1)||tooltip.dataPoints[0];
+            const hoveredDate=dp?.raw?.x||dp?.label;
+            if(!hoveredDate)return;
+
+            const lc=closeByDate[hoveredDate]||{};
+            let totCur=0,totInv2=0;
+            const rows=Object.keys(hMap).map(s=>{
+              const price=lc[s]; if(!price)return null;
+              const hs=hMap[s];
+              let cur=0,inv=0;
+              for(const h of hs){cur+=convert(price*h.shares,h.currency);inv+=convert(h.buyPrice*h.shares,h.currency);}
+              totCur+=cur;totInv2+=inv;
+              return{sym:s.split('.')[0],pct:inv>0?(cur-inv)/inv*100:0};
+            }).filter(Boolean);
+
+            const totalPct=totInv2>0?(totCur-totInv2)/totInv2*100:0;
+            const sign=v=>v>=0?'+':'';
+            const clr=v=>`color:${v>=0?'var(--green)':'var(--red)'}`;
+
+            tip.innerHTML=`
+              <div class="ctt-date">${hoveredDate}</div>
+              ${rows.map(r=>`<div class="ctt-row"><span class="ctt-sym">${r.sym}</span><span class="ctt-val" style="${clr(r.pct)}">${sign(r.pct)}${r.pct.toFixed(1)}%</span></div>`).join('')}
+              <div class="ctt-total"><span>Total</span><span style="${clr(totalPct)}">${sign(totalPct)}${totalPct.toFixed(1)}%</span></div>`;
+
+            const xPx=chart.scales.x.getPixelForValue(hoveredDate)??chart.chartArea.left;
+            const canvasRect=canvas.getBoundingClientRect();
+            const cardRect=canvas.closest('.chart-card').getBoundingClientRect();
+            const cArea=chart.chartArea;
+            const tipW=155;
+            let tipX=(canvasRect.left-cardRect.left)+xPx;
+            const tipY=(canvasRect.top-cardRect.top)+cArea.top+10;
+            if(xPx>(cArea.right+cArea.left)/2)tipX-=tipW+12;else tipX+=12;
+            tipX=Math.max(4,Math.min(tipX,cardRect.width-tipW-4));
+            tip.style.left=tipX+'px';tip.style.top=tipY+'px';tip.style.display='block';
+          }
+        },
       },
       onClick:(e)=>{
         if(!chartInst)return;
-        const tip=document.getElementById('chartTooltip');
         const pts=chartInst.getElementsAtEventForMode(e.native,'index',{intersect:false},true);
-        if(!pts.length){ if(tip) tip.style.display='none'; return; }
-
-        // dataset 1(투자금액선)은 allDates 전체를 가지므로 인덱스가 정확히 일치
+        if(!pts.length)return;
         const pt=pts.find(p=>p.datasetIndex===1)||pts[0];
         const clickedDate=chartInst.data.datasets[pt.datasetIndex]?.data[pt.index]?.x;
-        if(!clickedDate) return;
+        if(!clickedDate)return;
         const allDateIdx=allDates.indexOf(clickedDate);
-        if(allDateIdx<0) return;
-
-        // 슬라이더 패널도 같이 업데이트
+        if(allDateIdx<0)return;
         const sl=document.getElementById('dateSlider');
         if(sl){sl.value=allDateIdx;onSlider(allDateIdx);}
-
-        // 해당 날짜까지의 종가 재계산
-        const lc={};
-        for(let i=0;i<=allDateIdx;i++){
-          for(const [s,hist] of Object.entries(chartHistories)){
-            const f=hist.find(x=>x.date===allDates[i]); if(f) lc[s]=f.close;
-          }
-        }
-
-        // 종목별 수익률 (같은 종목 여러 계좌 합산)
-        let totCur=0, totInv2=0;
-        const rows=Object.keys(hMap).map(s=>{
-          const price=lc[s]; if(!price) return null;
-          const hs=hMap[s];
-          let cur=0,inv=0;
-          for(const h of hs){ cur+=convert(price*h.shares,h.currency); inv+=convert(h.buyPrice*h.shares,h.currency); }
-          totCur+=cur; totInv2+=inv;
-          return {sym:s.split('.')[0], pct:inv>0?(cur-inv)/inv*100:0};
-        }).filter(Boolean);
-
-        const totalPct=totInv2>0?(totCur-totInv2)/totInv2*100:0;
-        const sign=v=>v>=0?'+':'';
-        const clr=v=>`color:${v>=0?'var(--green)':'var(--red)'}`;
-
-        if(!tip)return;
-        tip.innerHTML=`
-          <div class="ctt-date">${clickedDate}</div>
-          ${rows.map(r=>`<div class="ctt-row"><span class="ctt-sym">${r.sym}</span><span class="ctt-val" style="${clr(r.pct)}">${sign(r.pct)}${r.pct.toFixed(1)}%</span></div>`).join('')}
-          <div class="ctt-total"><span>Total</span><span style="${clr(totalPct)}">${sign(totalPct)}${totalPct.toFixed(1)}%</span></div>`;
-
-        // 위치 계산: scales.x.getPixelForValue로 정확한 x 픽셀 획득
-        const xPx=chartInst.scales.x.getPixelForValue(clickedDate)??chartInst.chartArea.left;
-        const canvasRect=canvas.getBoundingClientRect();
-        const cardRect=canvas.closest('.chart-card').getBoundingClientRect();
-        const cArea=chartInst.chartArea;
-        const tipW=155;
-        let tipX=(canvasRect.left-cardRect.left)+xPx;
-        const tipY=(canvasRect.top-cardRect.top)+cArea.top+10;
-        if(xPx>(cArea.right+cArea.left)/2) tipX-=tipW+12; else tipX+=12;
-        tipX=Math.max(4,Math.min(tipX,cardRect.width-tipW-4));
-        tip.style.left=tipX+'px'; tip.style.top=tipY+'px'; tip.style.display='block';
       },
       scales:{
         x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
