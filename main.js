@@ -1168,7 +1168,7 @@ function drawAssetChart() {
     type:'line',
     data:{datasets:[
       {label: i18n[currentLang].summary_current, data:allDates.map((d,i)=>({x:d,y:assets[i]})).filter(p=>p.y!=null),borderColor:'#7c5cfc',backgroundColor:'rgba(124,92,252,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2.5,yAxisID:'y',order:2},
-      {label: i18n[currentLang].summary_invested, data:allDates.map(d=>({x:d,y:totalInv})),borderColor:'rgba(255,77,106,.8)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,borderDash:[5,4],yAxisID:'y',order:3},
+      {label: i18n[currentLang].summary_invested, data:allDates.map(d=>({x:d,y:totalInv})),borderColor:'rgba(255,77,106,.8)',fill:false,tension:0,pointRadius:0,borderWidth:1.5,yAxisID:'y',order:3},
       {label:'_cur',_cur:true,data:[{x:allDates[allDates.length-1],y:0},{x:allDates[allDates.length-1],y:totalInv*3}],borderColor:'rgba(0,212,170,.7)',fill:false,pointRadius:0,borderWidth:1.5,borderDash:[3,3],yAxisID:'y',order:1},
     ]},
     options:{
