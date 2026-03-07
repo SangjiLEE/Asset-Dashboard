@@ -270,7 +270,7 @@ setInterval(updateClock, 1000); updateClock();
 
 (function initDates(){
   const e = new Date(), s = new Date();
-  s.setMonth(s.getMonth()-3);
+  s.setMonth(s.getMonth()-1);
   const dEnd = document.getElementById('dEnd');
   const dStart = document.getElementById('dStart');
   if (dEnd) dEnd.value = e.toISOString().split('T')[0];
