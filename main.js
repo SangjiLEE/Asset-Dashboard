@@ -344,6 +344,8 @@ function updateUI() {
     if (i18n[currentLang][key]) {
       if (key === 'ai_sync') {
         el.innerHTML = `<span class="pulse"></span>${i18n[currentLang][key]}`;
+      } else if (key === 'hero_headline') {
+        el.innerHTML = i18n[currentLang][key];
       } else {
         el.textContent = i18n[currentLang][key];
       }
