@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════
 const i18n = {
   ko: {
-    title: "포트폴리오 대시보드",
+    title: "Multifolios",
     ai_sync: "실시간 데이터 연동",
     summary_invested: "총 투자금액",
     summary_current: "현재 평가금액",
@@ -86,7 +86,7 @@ const i18n = {
     contact_err: "전송에 실패했습니다. 다시 시도해 주세요."
   },
   en: {
-    title: "Portfolio Dashboard",
+    title: "Multifolios",
     ai_sync: "Real-time Sync",
     summary_invested: "Total Invested",
     summary_current: "Current Value",
