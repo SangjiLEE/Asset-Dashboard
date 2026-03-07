@@ -3,7 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="title">포트폴리오 대시보드</title>
+<title data-i18n="title">포트폴리오 대시보드 — 주식 자산 실시간 추적</title>
+<meta name="description" content="미국·한국 주식을 한눈에 관리하는 무료 포트폴리오 대시보드. 실시간 주가 조회, 수익률 그래프, 자산 배분 차트를 제공합니다. Google 계정으로 기기 간 동기화 지원.">
+<meta name="keywords" content="포트폴리오 대시보드, 주식 관리, 수익률 계산, 미국 주식, 한국 주식, 자산 관리, 투자 추적">
+<meta name="author" content="Portfolio Dashboard">
+<meta property="og:title" content="포트폴리오 대시보드 — 주식 자산 실시간 추적">
+<meta property="og:description" content="미국·한국 주식을 한눈에 관리하는 무료 포트폴리오 대시보드. 실시간 주가, 수익률 그래프, 자산 배분 제공.">
+<meta property="og:type" content="website">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -35,6 +41,33 @@
     </div>
   </div>
 </header>
+
+<!-- Intro Section (AdSense용 콘텐츠 / SEO) -->
+<section class="intro-section">
+  <div class="intro-grid">
+    <div class="intro-item">
+      <div class="intro-icon">📈</div>
+      <div class="intro-text">
+        <strong data-i18n="intro_title1">실시간 주가 추적</strong>
+        <span data-i18n="intro_desc1">미국(NYSE·NASDAQ)과 한국(KRX) 주식의 현재가를 실시간으로 조회하고, 보유 포트폴리오의 평가금액을 자동 계산합니다.</span>
+      </div>
+    </div>
+    <div class="intro-item">
+      <div class="intro-icon">💹</div>
+      <div class="intro-text">
+        <strong data-i18n="intro_title2">수익률 그래프</strong>
+        <span data-i18n="intro_desc2">기간별 자산 추이와 종목별 수익률을 인터랙티브 그래프로 확인하세요. 날짜를 선택하면 해당 시점의 포트폴리오 현황을 볼 수 있습니다.</span>
+      </div>
+    </div>
+    <div class="intro-item">
+      <div class="intro-icon">☁️</div>
+      <div class="intro-text">
+        <strong data-i18n="intro_title3">클라우드 동기화</strong>
+        <span data-i18n="intro_desc3">Google 계정으로 로그인하면 PC, 태블릿, 스마트폰 어디서든 동일한 포트폴리오 데이터를 확인할 수 있습니다.</span>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- Summary Cards -->
 <div class="cards">
@@ -139,6 +172,21 @@
 </div>
 
 </div>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-desc" data-i18n="footer_desc">미국·한국 주식 포트폴리오를 무료로 관리하세요. 실시간 주가, 수익률 차트, 자산 배분 분석을 제공합니다.</div>
+    <div class="footer-links">
+      <a href="/privacy-policy.html" data-i18n="footer_privacy">개인정보처리방침</a>
+      <span>·</span>
+      <a href="https://github.com/SangjiLEE/Asset-Dashboard" target="_blank" rel="noopener">GitHub</a>
+      <span>·</span>
+      <span style="color:var(--text3);">© 2025 Portfolio Dashboard</span>
+    </div>
+  </div>
+</footer>
+
 <div class="toast" id="toast"></div>
 
 <!-- Login Modal -->

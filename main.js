@@ -65,7 +65,15 @@ const i18n = {
     login_btn: "로그인",
     signup_btn: "회원가입",
     toast_login_ok: "로그인 완료!",
-    toast_logout_ok: "로그아웃 완료"
+    toast_logout_ok: "로그아웃 완료",
+    intro_title1: "실시간 주가 추적",
+    intro_desc1: "미국(NYSE·NASDAQ)과 한국(KRX) 주식의 현재가를 실시간으로 조회하고, 보유 포트폴리오의 평가금액을 자동 계산합니다.",
+    intro_title2: "수익률 그래프",
+    intro_desc2: "기간별 자산 추이와 종목별 수익률을 인터랙티브 그래프로 확인하세요. 날짜를 선택하면 해당 시점의 포트폴리오 현황을 볼 수 있습니다.",
+    intro_title3: "클라우드 동기화",
+    intro_desc3: "Google 계정으로 로그인하면 PC, 태블릿, 스마트폰 어디서든 동일한 포트폴리오 데이터를 확인할 수 있습니다.",
+    footer_desc: "미국·한국 주식 포트폴리오를 무료로 관리하세요. 실시간 주가, 수익률 차트, 자산 배분 분석을 제공합니다.",
+    footer_privacy: "개인정보처리방침"
   },
   en: {
     title: "Portfolio Dashboard",
@@ -130,7 +138,15 @@ const i18n = {
     login_btn: "Sign In",
     signup_btn: "Sign Up",
     toast_login_ok: "Signed in!",
-    toast_logout_ok: "Signed out"
+    toast_logout_ok: "Signed out",
+    intro_title1: "Real-time Price Tracking",
+    intro_desc1: "Track live prices for US (NYSE·NASDAQ) and Korean (KRX) stocks. Portfolio value is calculated automatically.",
+    intro_title2: "Return Charts",
+    intro_desc2: "Visualize asset trends and per-stock returns with interactive charts. Select any date to see your portfolio snapshot.",
+    intro_title3: "Cloud Sync",
+    intro_desc3: "Sign in with Google to access your portfolio from any device — PC, tablet, or smartphone.",
+    footer_desc: "Free portfolio tracker for US & Korean stocks. Real-time prices, return charts, and allocation analysis.",
+    footer_privacy: "Privacy Policy"
   }
 };
 
