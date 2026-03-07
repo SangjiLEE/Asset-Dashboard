@@ -1188,6 +1188,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAll();
         if (isNewLogin) toast(`✅ ${i18n[currentLang].toast_login_ok}`);
       } else if (isLogout) {
+        // 로그아웃 시 데이터 초기화
+        holdings = [];
+        accounts = [];
+        localStorage.removeItem('ph2_holdings');
+        localStorage.removeItem('ph2_accounts');
+        renderAccountUI();
+        renderAll();
         toast(i18n[currentLang].toast_logout_ok);
       }
       renderLoginUI();
