@@ -35,10 +35,12 @@
         <div class="cur-label" style="font-size:9px;color:var(--text3);margin-right:4px;align-self:center;" data-i18n="display_currency">표시 통화</div>
         <button class="lang-btn active" id="cur-krw" onclick="setDisplayCurrency('KRW')">KRW</button>
         <button class="lang-btn" id="cur-usd" onclick="setDisplayCurrency('USD')">USD</button>
+        <button class="lang-btn" id="cur-jpy" onclick="setDisplayCurrency('JPY')">JPY</button>
       </div>
       <div class="lang-switch">
         <button class="lang-btn active" id="lang-ko" onclick="changeLang('ko')">KO</button>
         <button class="lang-btn" id="lang-en" onclick="changeLang('en')">EN</button>
+        <button class="lang-btn" id="lang-ja" onclick="changeLang('ja')">JA</button>
       </div>
       <button class="theme-btn" id="themeToggle" onclick="toggleTheme()" title="라이트/다크 모드"></button>
       <div id="loginArea"></div>
@@ -90,6 +92,7 @@
       <select id="inCurrency">
         <option value="USD" data-i18n="opt_usd">🇺🇸 달러 (USD)</option>
         <option value="KRW" data-i18n="opt_krw">🇰🇷 원화 (KRW)</option>
+        <option value="JPY" data-i18n="opt_jpy">🇯🇵 엔화 (JPY)</option>
       </select>
     </div>
     <div class="fg"><label data-i18n="label_account">계좌</label>

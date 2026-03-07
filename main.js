@@ -20,6 +20,7 @@ const i18n = {
     label_shares: "수량 (주)",
     opt_usd: "🇺🇸 달러 (USD)",
     opt_krw: "🇰🇷 원화 (KRW)",
+    opt_jpy: "🇯🇵 엔화 (JPY)",
     btn_add: "+ 추가",
     chart_asset: "자산 추이",
     chart_return: "수익률 추이",
@@ -103,6 +104,7 @@ const i18n = {
     label_shares: "Shares",
     opt_usd: "🇺🇸 USD",
     opt_krw: "🇰🇷 KRW",
+    opt_jpy: "🇯🇵 JPY",
     btn_add: "+ Add",
     chart_asset: "Asset Trend",
     chart_return: "Return Trend",
@@ -167,6 +169,90 @@ const i18n = {
     contact_cancel: "Close",
     contact_ok: "Your message has been sent. Thank you!",
     contact_err: "Failed to send. Please try again."
+  },
+  ja: {
+    title: "Multifolios",
+    ai_sync: "リアルタイム同期",
+    summary_invested: "総投資額",
+    summary_current: "現在評価額",
+    summary_pnl: "損益",
+    summary_return: "リターン",
+    basis_buy: "取得価額基準",
+    basis_market: "時価基準",
+    unrealized_pnl: "含み損益",
+    entire_portfolio: "ポートフォリオ全体",
+    add_title: "銘柄追加",
+    label_ticker: "ティッカー",
+    label_currency: "通貨",
+    label_price: "取得単価",
+    label_shares: "株数",
+    opt_usd: "🇺🇸 ドル (USD)",
+    opt_krw: "🇰🇷 ウォン (KRW)",
+    opt_jpy: "🇯🇵 円 (JPY)",
+    btn_add: "+ 追加",
+    chart_asset: "資産推移",
+    chart_return: "リターン推移",
+    tab_asset: "資産",
+    tab_return: "リターン",
+    btn_load: "表示",
+    holdings_title: "保有銘柄",
+    btn_refresh: "更新",
+    allocation_title: "配分",
+    pnl_by_asset: "銘柄別損益率",
+    empty_holdings: "銘柄を追加してください",
+    empty_chart: "銘柄を追加するとグラフが表示されます",
+    empty_after_add: "銘柄追加後に表示",
+    toast_added: "追加しました！",
+    toast_updated: "更新しました",
+    toast_input_ticker: "ティッカーを入力してください",
+    toast_input_price: "取得単価を入力してください",
+    toast_input_shares: "株数を入力してください",
+    toast_fetch_fail: "データを取得できません。しばらくしてからお試しください。",
+    toast_loading: "📡 データ取得中...",
+    asset_val: "評価額",
+    pnl_val: "損益",
+    return_val: "リターン",
+    loading_history: "履歴読み込み中...",
+    fetching_stock: "取得中...",
+    data_not_found: "データを取得できませんでした",
+    ex_rate: "適用レート",
+    display_currency: "表示通貨",
+    label_account: "口座",
+    opt_no_account: "口座なし",
+    all_accounts: "全て",
+    no_account: "未分類",
+    acc_placeholder: "口座名",
+    toast_acc_exists: "同じ口座名が既に存在します",
+    login: "ログイン",
+    logout: "ログアウト",
+    login_title: "クラウド同期",
+    login_desc: "ログインするとデータがクラウドに保存され、デバイス間で同期できます。",
+    login_google: "Googleでログイン",
+    or: "または",
+    label_email: "メール",
+    label_password: "パスワード",
+    login_btn: "ログイン",
+    signup_btn: "新規登録",
+    toast_login_ok: "ログインしました！",
+    toast_logout_ok: "ログアウトしました",
+    intro_title1: "複数国の証券口座管理",
+    intro_desc1: "Multifoliosでは、国を問わず複数の証券口座のポートフォリオ管理が可能です。米国(NYSE·NASDAQ)、韓国(KRX)など様々な市場の資産を一目で確認できます。",
+    intro_title2: "リターングラフ",
+    intro_desc2: "期間別の資産推移と銘柄別リターンをインタラクティブなグラフで確認できます。日付を選択するとその時点のポートフォリオ状況が表示されます。",
+    intro_title3: "クラウド同期",
+    intro_desc3: "ログインすると、PC・タブレット・スマートフォンどこからでも同じポートフォリオデータを管理できます。",
+    footer_desc: "米国・韓国株の無料ポートフォリオトラッカー。リアルタイム株価、リターングラフ、配分分析を提供します。",
+    footer_privacy: "プライバシーポリシー",
+    footer_contact: "お問い合わせ",
+    contact_title: "お問い合わせ",
+    contact_desc: "ご質問やご意見をお送りください。迅速にご返答いたします。",
+    contact_email: "メール",
+    contact_subject: "件名",
+    contact_message: "内容",
+    contact_send: "送信",
+    contact_cancel: "閉じる",
+    contact_ok: "お問い合わせを受け付けました。ありがとうございます！",
+    contact_err: "送信に失敗しました。もう一度お試しください。"
   }
 };
 
@@ -181,6 +267,7 @@ let accounts        = JSON.parse(localStorage.getItem('ph2_accounts') || '[]');
 let holdAccFilter   = 'all';        // 'all' | accountId | '__none__'
 let chartAccFilter  = new Set();    // empty = 전체, otherwise Set of accountId
 let usdKrwRate      = 1350;
+let usdJpyRate      = 150;
 let priceCache      = {};
 let historyCache    = {};
 let chartInst = null, donutInst = null, barInst = null;
@@ -256,18 +343,17 @@ function updateUI() {
     }
   });
 
-  const logo = document.getElementById('logo');
-  if (logo) {
-    logo.innerHTML = currentLang === 'ko' ? `포트폴리오 <span>대시보드</span>` : `PORTFOLIO <span>DASHBOARD</span>`;
-  }
-
   document.getElementById('lang-ko').classList.toggle('active', currentLang === 'ko');
   document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
+  const langJa = document.getElementById('lang-ja');
+  if (langJa) langJa.classList.toggle('active', currentLang === 'ja');
   
   const curKo = document.getElementById('cur-krw');
   const curEn = document.getElementById('cur-usd');
+  const curJp = document.getElementById('cur-jpy');
   if (curKo) curKo.classList.toggle('active', displayCurrency === 'KRW');
   if (curEn) curEn.classList.toggle('active', displayCurrency === 'USD');
+  if (curJp) curJp.classList.toggle('active', displayCurrency === 'JPY');
 
   const chartTitle = document.getElementById('chartTitle');
   if (chartTitle) {
@@ -279,7 +365,9 @@ function updateUI() {
 
 function updateExchangeRateDisplay() {
   const el = document.getElementById('exRateDisplay');
-  if (el) el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
+  if (!el) return;
+  if (displayCurrency === 'JPY') el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ¥${fNum(usdJpyRate, 1)}`;
+  else el.textContent = `${i18n[currentLang].ex_rate}: 1$ = ₩${fNum(usdKrwRate, 1)}`;
 }
 
 window.changeLang = changeLang;
@@ -288,7 +376,7 @@ window.setDisplayCurrency = setDisplayCurrency;
 // ═══════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════
-const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString(currentLang === 'ko' ? 'ko-KR' : 'en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fNum = (n, d=0) => (n==null||isNaN(n)) ? '—' : n.toLocaleString(currentLang === 'ko' ? 'ko-KR' : currentLang === 'ja' ? 'ja-JP' : 'en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
 
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
@@ -451,9 +539,10 @@ async function updateUsdKrwRate() {
       const data = await res.json();
       if (data.result === 'success' && data.rates?.KRW) {
         usdKrwRate = data.rates.KRW;
+        if (data.rates?.JPY) usdJpyRate = data.rates.JPY;
         updateExchangeRateDisplay();
         renderAll();
-        console.log(`[Exchange Rate] 1 USD = ₩${usdKrwRate} (open.er-api)`);
+        console.log(`[Exchange Rate] 1 USD = ₩${usdKrwRate}, ¥${usdJpyRate} (open.er-api)`);
         return;
       }
     }
@@ -847,6 +936,10 @@ function convert(val, from) {
   if (from === displayCurrency) return val;
   if (from === 'USD' && displayCurrency === 'KRW') return val * usdKrwRate;
   if (from === 'KRW' && displayCurrency === 'USD') return val / usdKrwRate;
+  if (from === 'USD' && displayCurrency === 'JPY') return val * usdJpyRate;
+  if (from === 'JPY' && displayCurrency === 'USD') return val / usdJpyRate;
+  if (from === 'KRW' && displayCurrency === 'JPY') return val / usdKrwRate * usdJpyRate;
+  if (from === 'JPY' && displayCurrency === 'KRW') return val / usdJpyRate * usdKrwRate;
   return val;
 }
 
@@ -883,8 +976,8 @@ function renderCards() {
   });
   const pnl = totalCur - totalInv;
   const ret = totalInv > 0 ? (pnl / totalInv) * 100 : 0;
-  const sym = displayCurrency === 'KRW' ? '₩' : '$';
-  const dec = displayCurrency === 'KRW' ? 0 : 2;
+  const sym = displayCurrency === 'KRW' ? '₩' : displayCurrency === 'JPY' ? '¥' : '$';
+  const dec = (displayCurrency === 'KRW' || displayCurrency === 'JPY') ? 0 : 2;
 
   document.getElementById('cInvested').textContent = `${sym}${fNum(totalInv, dec)}`;
   document.getElementById('cCurrent').textContent  = `${sym}${fNum(totalCur, dec)}`;
@@ -1061,7 +1154,7 @@ function drawAssetChart() {
     closeByDate[date]={...runningClose};
   }
 
-  const sym = displayCurrency === 'KRW' ? '₩' : '$';
+  const sym = displayCurrency === 'KRW' ? '₩' : displayCurrency === 'JPY' ? '¥' : '$';
   const ct = getChartTheme();
   const maxAsset = Math.max(...assets.filter(v => v != null), totalInv);
   const yMax = maxAsset * 1.5;
@@ -1136,7 +1229,7 @@ function drawAssetChart() {
       },
       scales:{
         x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
-        y:{max:yMax,grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
+        y:{max:yMax,grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : displayCurrency==='JPY' ? (v>=1e8?'¥'+(v/1e8).toFixed(1)+'億':v>=1e4?'¥'+(v/1e4).toFixed(0)+'万':'¥'+fNum(v)) : sym+fNum(v)}},
       },
     }
   });
@@ -1259,8 +1352,8 @@ function onSlider(idx) {
   const pnl = totalAsset - totalInv;
   const ret = totalInv > 0 ? (pnl / totalInv) * 100 : 0;
   const s = pnl >= 0 ? '+' : '';
-  const sym = displayCurrency === 'KRW' ? '₩' : '$';
-  const dec = displayCurrency === 'KRW' ? 0 : 2;
+  const sym = displayCurrency === 'KRW' ? '₩' : displayCurrency === 'JPY' ? '¥' : '$';
+  const dec = (displayCurrency === 'KRW' || displayCurrency === 'JPY') ? 0 : 2;
 
   const sliderStats = document.getElementById('sliderStats');
   if (sliderStats) {
