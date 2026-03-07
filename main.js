@@ -608,6 +608,11 @@ function openLoginModal() {
 function closeLoginModal() {
   const m = document.getElementById('loginModal');
   if (m) m.style.display = 'none';
+  const email = document.getElementById('authEmail');
+  const password = document.getElementById('authPassword');
+  if (email) email.value = '';
+  if (password) password.value = '';
+  setAuthError('');
 }
 
 function setAuthError(msg) {
