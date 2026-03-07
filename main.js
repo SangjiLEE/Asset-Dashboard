@@ -53,7 +53,19 @@ const i18n = {
     all_accounts: "전체",
     no_account: "미분류",
     acc_placeholder: "계좌명 (예: 키움)",
-    toast_acc_exists: "이미 존재하는 계좌명입니다"
+    toast_acc_exists: "이미 존재하는 계좌명입니다",
+    login: "로그인",
+    logout: "로그아웃",
+    login_title: "클라우드 동기화",
+    login_desc: "로그인하면 데이터가 클라우드에 저장되어 기기 간 동기화가 가능합니다.",
+    login_google: "Google로 로그인",
+    or: "또는",
+    label_email: "이메일",
+    label_password: "비밀번호",
+    login_btn: "로그인",
+    signup_btn: "회원가입",
+    toast_login_ok: "로그인 완료!",
+    toast_logout_ok: "로그아웃 완료"
   },
   en: {
     title: "Portfolio Dashboard",
@@ -106,7 +118,19 @@ const i18n = {
     all_accounts: "All",
     no_account: "Unassigned",
     acc_placeholder: "Account name",
-    toast_acc_exists: "Account name already exists"
+    toast_acc_exists: "Account name already exists",
+    login: "Login",
+    logout: "Logout",
+    login_title: "Cloud Sync",
+    login_desc: "Sign in to save your data to the cloud and sync across devices.",
+    login_google: "Sign in with Google",
+    or: "OR",
+    label_email: "Email",
+    label_password: "Password",
+    login_btn: "Sign In",
+    signup_btn: "Sign Up",
+    toast_login_ok: "Signed in!",
+    toast_logout_ok: "Signed out"
   }
 };
 
@@ -115,6 +139,7 @@ const i18n = {
 // ═══════════════════════════════════════
 let currentLang     = localStorage.getItem('ph2_lang') || 'ko';
 let displayCurrency = localStorage.getItem('ph2_display_cur') || 'KRW';
+let currentTheme    = localStorage.getItem('ph2_theme') || 'dark';
 let holdings        = JSON.parse(localStorage.getItem('ph2_holdings') || '[]');
 let accounts        = JSON.parse(localStorage.getItem('ph2_accounts') || '[]');
 let holdAccFilter   = 'all';        // 'all' | accountId | '__none__'
@@ -126,6 +151,7 @@ let chartInst = null, donutInst = null, barInst = null;
 let chartMode = 'asset';
 let sliderDates = [];
 const COLORS = ['#7c5cfc','#00d4aa','#ff4d6a','#f5a623','#4fc3f7','#81c784','#ce93d8','#ffb74d'];
+let currentUser = null;
 
 // ═══════════════════════════════════════
 // I18N & CURRENCY ENGINE
@@ -143,6 +169,43 @@ function setDisplayCurrency(cur) {
   updateUI();
   renderAll();
   if (Object.keys(historyCache).length) drawChart();
+}
+
+function getChartTheme() {
+  const dark = currentTheme === 'dark';
+  return {
+    grid:         dark ? 'rgba(42,42,62,.4)'  : 'rgba(180,180,210,.5)',
+    tick:         dark ? '#55556a'             : '#888899',
+    legend:       dark ? '#8888aa'             : '#555577',
+    tooltipBg:    dark ? '#1a1a26'             : '#ffffff',
+    tooltipBorder:dark ? '#2a2a3e'             : '#d4d4e8',
+    tooltipTitle: dark ? '#8888aa'             : '#888899',
+    tooltipBody:  dark ? '#e8e8f0'             : '#1a1a2e',
+    donutBorder:  dark ? '#0a0a0f'             : '#f0f0f7',
+  };
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('ph2_theme', currentTheme);
+  applyTheme();
+  if (Object.keys(historyCache).length) drawChart();
+  renderAll();
+}
+
+function applyTheme() {
+  document.body.classList.toggle('light', currentTheme === 'light');
+  const btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  if (currentTheme === 'light') {
+    // moon icon (다크모드로 전환)
+    btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>`;
+    btn.title = '다크 모드로 전환';
+  } else {
+    // sun icon (라이트모드로 전환)
+    btn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+    btn.title = '라이트 모드로 전환';
+  }
 }
 
 function updateUI() {
@@ -175,6 +238,7 @@ function updateUI() {
     chartTitle.textContent = chartMode === 'asset' ? i18n[currentLang].chart_asset : i18n[currentLang].chart_return;
   }
   updateExchangeRateDisplay();
+  renderLoginUI();
 }
 
 function updateExchangeRateDisplay() {
@@ -447,6 +511,124 @@ function removeHolding(id) {
 function save() {
   localStorage.setItem('ph2_holdings', JSON.stringify(holdings));
   localStorage.setItem('ph2_accounts', JSON.stringify(accounts));
+  saveToFirestore();
+}
+
+// ═══════════════════════════════════════
+// AUTH & CLOUD SYNC
+// ═══════════════════════════════════════
+let _db = null;
+function getDb() {
+  if (!_db) {
+    try { _db = firebase.firestore(); } catch(e) {}
+  }
+  return _db;
+}
+
+let _saveTimer = null;
+function saveToFirestore() {
+  if (!currentUser) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveToFirestoreNow, 800);
+}
+
+async function saveToFirestoreNow() {
+  if (!currentUser) return;
+  const db = getDb();
+  if (!db) return;
+  try {
+    await db.collection('users').doc(currentUser.uid).set({
+      holdings,
+      accounts,
+      updatedAt: new Date().toISOString()
+    });
+    console.log('[Firestore] Saved');
+  } catch(e) {
+    console.error('[Firestore] Save failed:', e);
+  }
+}
+
+async function loadFromFirestore() {
+  if (!currentUser) return;
+  const db = getDb();
+  if (!db) return;
+  try {
+    const doc = await db.collection('users').doc(currentUser.uid).get();
+    if (doc.exists) {
+      const data = doc.data();
+      holdings = data.holdings || [];
+      accounts = data.accounts || [];
+      localStorage.setItem('ph2_holdings', JSON.stringify(holdings));
+      localStorage.setItem('ph2_accounts', JSON.stringify(accounts));
+      console.log('[Firestore] Loaded from cloud');
+    } else {
+      // New user: migrate local data to cloud
+      await saveToFirestoreNow();
+      console.log('[Firestore] Migrated local data to cloud');
+    }
+  } catch(e) {
+    console.error('[Firestore] Load failed:', e);
+  }
+}
+
+function loginWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider)
+    .then(() => closeLoginModal())
+    .catch(e => setAuthError(e.message));
+}
+
+function loginWithEmail() {
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  if (!email || !password) { setAuthError('이메일과 비밀번호를 입력하세요'); return; }
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then(() => closeLoginModal())
+    .catch(e => setAuthError(e.message));
+}
+
+function signupWithEmail() {
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  if (!email || !password) { setAuthError('이메일과 비밀번호를 입력하세요'); return; }
+  firebase.auth().createUserWithEmailAndPassword(email, password)
+    .then(() => closeLoginModal())
+    .catch(e => setAuthError(e.message));
+}
+
+function logout() {
+  firebase.auth().signOut();
+}
+
+function openLoginModal() {
+  const m = document.getElementById('loginModal');
+  if (m) { m.style.display = 'flex'; setAuthError(''); }
+}
+
+function closeLoginModal() {
+  const m = document.getElementById('loginModal');
+  if (m) m.style.display = 'none';
+}
+
+function setAuthError(msg) {
+  const el = document.getElementById('authError');
+  if (el) el.textContent = msg;
+}
+
+function renderLoginUI() {
+  const area = document.getElementById('loginArea');
+  if (!area) return;
+  if (currentUser) {
+    const name = currentUser.displayName || currentUser.email || 'User';
+    const initial = name.charAt(0).toUpperCase();
+    const photoUrl = currentUser.photoURL;
+    const avatar = photoUrl
+      ? `<img class="user-avatar" src="${photoUrl}" alt="${initial}">`
+      : `<div class="user-avatar-init">${initial}</div>`;
+    area.innerHTML = `<div class="user-info">${avatar}<span class="user-name">${name}</span><button class="btn-sm" onclick="logout()">${i18n[currentLang].logout}</button></div>`;
+  } else {
+    area.innerHTML = `<button class="btn-sm" onclick="openLoginModal()">${i18n[currentLang].login}</button>`;
+  }
 }
 
 // ═══════════════════════════════════════
@@ -684,7 +866,7 @@ function renderDonut() {
   if(donutInst)donutInst.destroy();
   donutInst = new Chart(canvas, {
     type:'doughnut',
-    data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,filtered.length),borderWidth:2,borderColor:'#0a0a0f',hoverOffset:5}]},
+    data:{labels,datasets:[{data:vals,backgroundColor:COLORS.slice(0,filtered.length),borderWidth:2,borderColor:getChartTheme().donutBorder,hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+(ctx.raw/total*100).toFixed(1)+'%'}}}}
   });
   list.innerHTML=filtered.map((h,i)=>{
@@ -706,7 +888,8 @@ function renderBar() {
   const data=filtered.map(h=>h.currentPrice?+((h.currentPrice-h.buyPrice)/h.buyPrice*100).toFixed(2):0);
   const colors=data.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(255,77,106,.8)');
   if(barInst)barInst.destroy();
-  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:'rgba(42,42,62,.5)'},ticks:{color:'#8888aa',font:{family:'Space Mono',size:10}}},y:{grid:{color:'rgba(42,42,62,.5)'},ticks:{color:'#8888aa',font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
+  const ct = getChartTheme();
+  barInst=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw.toFixed(2)}%`}}},scales:{x:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10}}},y:{grid:{color:ct.grid},ticks:{color:ct.legend,font:{family:'Space Mono',size:10},callback:v=>v+'%'},border:{dash:[4,4]}}}}});
 }
 
 // ═══════════════════════════════════════
@@ -776,6 +959,7 @@ function drawAssetChart() {
   });
 
   const sym = displayCurrency === 'KRW' ? '₩' : '$';
+  const ct = getChartTheme();
   if(chartInst)chartInst.destroy();
   chartInst=new Chart(canvas,{
     type:'line',
@@ -786,10 +970,10 @@ function drawAssetChart() {
     ]},
     options:{
       responsive:true,animation:false,interaction:{mode:'none'},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8888aa',font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},tooltip:{enabled:false}},
+      plugins:{legend:{display:true,position:'top',labels:{color:ct.legend,font:{family:'Space Mono',size:10},boxWidth:10,padding:12,filter:i=>i.text!=='_cur'}},tooltip:{enabled:false}},
       scales:{
-        x:{type:'category',grid:{color:'rgba(42,42,62,.4)'},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},maxTicksLimit:10}},
-        y:{grid:{color:'rgba(42,42,62,.4)'},border:{dash:[4,4]},ticks:{color:'#55556a',font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
+        x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
+        y:{grid:{color:ct.grid},border:{dash:[4,4]},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},callback:v=> displayCurrency==='KRW' ? (v>=1e8?'₩'+(v/1e8).toFixed(1)+'억':v>=1e4?'₩'+(v/1e4).toFixed(0)+'만':'₩'+fNum(v)) : sym+fNum(v)}},
       },
     }
   });
@@ -847,19 +1031,20 @@ function drawReturnChart() {
     };
   }).filter(Boolean);
 
+  const ct = getChartTheme();
   if (chartInst) chartInst.destroy();
   chartInst = new Chart(canvas, {
     type: 'line',
     data: { datasets },
     options: {
       responsive: true,
-      animation: false,  // 탭 전환 시 즉시 렌더링
+      animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: '#8888aa', font: { family: 'Space Mono', size: 10 }, boxWidth: 10, padding: 12 } },
+        legend: { display: true, position: 'top', labels: { color: ct.legend, font: { family: 'Space Mono', size: 10 }, boxWidth: 10, padding: 12 } },
         tooltip: {
-          backgroundColor: '#1a1a26', borderColor: '#2a2a3e', borderWidth: 1,
-          titleColor: '#8888aa', bodyColor: '#e8e8f0',
+          backgroundColor: ct.tooltipBg, borderColor: ct.tooltipBorder, borderWidth: 1,
+          titleColor: ct.tooltipTitle, bodyColor: ct.tooltipBody,
           callbacks: {
             title: c => c[0]?.raw?.x || '',
             label: c => {
@@ -871,8 +1056,8 @@ function drawReturnChart() {
         }
       },
       scales: {
-        x: { type: 'category', grid: { color: 'rgba(42,42,62,.4)' }, ticks: { color: '#55556a', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 10 } },
-        y: { grid: { color: 'rgba(42,42,62,.4)' }, border: { dash: [4, 4] }, ticks: { color: '#55556a', font: { family: 'Space Mono', size: 9 }, callback: v => v.toFixed(1) + '%' } }
+        x: { type: 'category', grid: { color: ct.grid }, ticks: { color: ct.tick, font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 10 } },
+        y: { grid: { color: ct.grid }, border: { dash: [4, 4] }, ticks: { color: ct.tick, font: { family: 'Space Mono', size: 9 }, callback: v => v.toFixed(1) + '%' } }
       }
     }
   });
@@ -967,10 +1152,46 @@ window.addAccount = addAccount;
 window.removeAccount = removeAccount;
 window.setHoldAccFilter = setHoldAccFilter;
 window.toggleChartAccFilter = toggleChartAccFilter;
+window.openLoginModal = openLoginModal;
+window.closeLoginModal = closeLoginModal;
+window.loginWithGoogle = loginWithGoogle;
+window.loginWithEmail = loginWithEmail;
+window.signupWithEmail = signupWithEmail;
+window.logout = logout;
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await updateUsdKrwRate();
+document.addEventListener('DOMContentLoaded', () => {
+  // Apply saved theme
+  applyTheme();
+
+  // Render immediately from localStorage
   updateUI();
   renderAccountUI();
   renderAll();
+
+  // Exchange rate (non-blocking)
+  updateUsdKrwRate();
+
+  // Auth state listener
+  let _authReady = false;
+  try {
+    firebase.auth().onAuthStateChanged(async (user) => {
+      const isNewLogin = _authReady && !currentUser && !!user;
+      const isLogout   = _authReady && !!currentUser && !user;
+      currentUser = user;
+      _authReady = true;
+
+      if (user) {
+        await loadFromFirestore();
+        renderAccountUI();
+        renderAll();
+        if (isNewLogin) toast(`✅ ${i18n[currentLang].toast_login_ok}`);
+      } else if (isLogout) {
+        toast(i18n[currentLang].toast_logout_ok);
+      }
+      renderLoginUI();
+    });
+  } catch(e) {
+    console.warn('[Auth] Firebase Auth not available:', e);
+    renderLoginUI();
+  }
 });
