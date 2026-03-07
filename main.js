@@ -947,7 +947,9 @@ function drawAssetChart() {
   if (area) area.style.display='none'; if (canvas) canvas.style.display='block';
 
   const chartH = getChartHoldings();
-  const hMap={}; chartH.forEach(h=>hMap[h.symbol]=h);
+  // hMap: symbol → [holding, ...] (같은 종목이 여러 계좌에 있을 경우 합산)
+  const hMap={};
+  chartH.forEach(h=>{ if(!hMap[h.symbol])hMap[h.symbol]=[]; hMap[h.symbol].push(h); });
   const chartHistories = Object.fromEntries(Object.entries(historyCache).filter(([sym]) => hMap[sym]));
   const allDates=[...new Set(Object.values(chartHistories).flatMap(a=>a.map(d=>d.date)))].sort();
 
@@ -958,12 +960,11 @@ function drawAssetChart() {
   const assets = allDates.map(date=>{
     let tot=0, any=false;
     for(const [sym,hist] of Object.entries(chartHistories)){
-      const h=hMap[sym]; if(!h)continue;
+      const hs=hMap[sym]; if(!hs)continue;
       const found=hist.find(x=>x.date===date);
       if(found) lastClose[sym]=found.close;
       if(lastClose[sym]){
-        tot += convert(lastClose[sym] * h.shares, h.currency);
-        any=true;
+        for(const h of hs){ tot+=convert(lastClose[sym]*h.shares,h.currency); any=true; }
       }
     }
     return any?tot:null;
@@ -989,12 +990,56 @@ function drawAssetChart() {
       },
       onClick:(e)=>{
         if(!chartInst)return;
+        const tip=document.getElementById('chartTooltip');
         const pts=chartInst.getElementsAtEventForMode(e.native,'index',{intersect:false},true);
-        if(!pts.length)return;
+        if(!pts.length){ if(tip) tip.style.display='none'; return; }
         const idx=pts[0].index;
+        const date=allDates[idx];
+
+        // 슬라이더 패널도 같이 업데이트
         const sl=document.getElementById('dateSlider');
         if(sl){sl.value=idx;onSlider(idx);}
-        document.getElementById('sliderPanel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+
+        // 해당 날짜까지의 종가 재계산
+        const lc={};
+        for(let i=0;i<=idx;i++){
+          for(const [s,hist] of Object.entries(chartHistories)){
+            const f=hist.find(x=>x.date===allDates[i]); if(f) lc[s]=f.close;
+          }
+        }
+
+        // 종목별 수익률 (같은 종목 여러 계좌 합산)
+        let totCur=0, totInv2=0;
+        const rows=Object.keys(hMap).map(s=>{
+          const price=lc[s]; if(!price) return null;
+          const hs=hMap[s];
+          let cur=0,inv=0;
+          for(const h of hs){ cur+=convert(price*h.shares,h.currency); inv+=convert(h.buyPrice*h.shares,h.currency); }
+          totCur+=cur; totInv2+=inv;
+          return {sym:s.split('.')[0], pct:inv>0?(cur-inv)/inv*100:0};
+        }).filter(Boolean);
+
+        const totalPct=totInv2>0?(totCur-totInv2)/totInv2*100:0;
+        const sign=v=>v>=0?'+':'';
+        const clr=v=>`color:${v>=0?'var(--green)':'var(--red)'}`;
+
+        if(!tip)return;
+        tip.innerHTML=`
+          <div class="ctt-date">${date}</div>
+          ${rows.map(r=>`<div class="ctt-row"><span class="ctt-sym">${r.sym}</span><span class="ctt-val" style="${clr(r.pct)}">${sign(r.pct)}${r.pct.toFixed(1)}%</span></div>`).join('')}
+          <div class="ctt-total"><span>Total</span><span style="${clr(totalPct)}">${sign(totalPct)}${totalPct.toFixed(1)}%</span></div>`;
+
+        // 위치 계산 (차트 카드 기준)
+        const xPx=(chartInst.getDatasetMeta(0).data[idx]?.x)??chartInst.chartArea.left;
+        const canvasRect=canvas.getBoundingClientRect();
+        const cardRect=canvas.closest('.chart-card').getBoundingClientRect();
+        const cArea=chartInst.chartArea;
+        const tipW=155;
+        let tipX=(canvasRect.left-cardRect.left)+xPx;
+        const tipY=(canvasRect.top-cardRect.top)+cArea.top+10;
+        if(xPx>(cArea.right+cArea.left)/2) tipX-=tipW+12; else tipX+=12;
+        tipX=Math.max(4,Math.min(tipX,cardRect.width-tipW-4));
+        tip.style.left=tipX+'px'; tip.style.top=tipY+'px'; tip.style.display='block';
       },
       scales:{
         x:{type:'category',grid:{color:ct.grid},ticks:{color:ct.tick,font:{family:'Space Mono',size:9},maxTicksLimit:10}},
@@ -1094,7 +1139,9 @@ function onSlider(idx) {
   document.getElementById('sliderDate').textContent=date;
 
   const chartH = getChartHoldings();
-  const hMap={}; chartH.forEach(h=>hMap[h.symbol]=h);
+  // hMap: symbol → [holding, ...] (여러 계좌 합산)
+  const hMap={};
+  chartH.forEach(h=>{ if(!hMap[h.symbol])hMap[h.symbol]=[]; hMap[h.symbol].push(h); });
   const lastClose={};
   for(let i=0;i<=idx;i++){
     const d=sliderDates[i];
@@ -1107,13 +1154,13 @@ function onSlider(idx) {
   chartH.forEach(h => { totalInv += convert(h.buyPrice * h.shares, h.currency); });
 
   const chips=[];
-  for(const [sym,] of Object.entries(historyCache)){
-    const h=hMap[sym]; if(!h)continue;
+  for(const sym of Object.keys(hMap)){
     const price=lastClose[sym]; if(!price)continue;
-    const val = convert(price * h.shares, h.currency);
-    const inv = convert(h.buyPrice * h.shares, h.currency);
-    totalAsset += val;
-    chips.push({sym,h,val,pnl:val-inv,pct:(val-inv)/inv*100,price});
+    const hs=hMap[sym];
+    let val=0, inv=0;
+    for(const h of hs){ val+=convert(price*h.shares,h.currency); inv+=convert(h.buyPrice*h.shares,h.currency); }
+    totalAsset+=val;
+    chips.push({sym, repr:hs[0], val, pnl:val-inv, pct:(val-inv)/inv*100, price});
   }
 
   const pnl = totalAsset - totalInv;
@@ -1133,7 +1180,7 @@ function onSlider(idx) {
   const sliderChips = document.getElementById('sliderChips');
   if (sliderChips) {
     sliderChips.innerHTML=chips.map(r=>{
-      const sign=r.pct>=0?'+':'', d=r.h.currency==='USD'?2:0, c=r.h.currency==='USD'?'$':'₩';
+      const sign=r.pct>=0?'+':'', d=r.repr.currency==='USD'?2:0, c=r.repr.currency==='USD'?'$':'₩';
       return `<div class="chip"><div class="chip-sym">${r.sym.split('.')[0]}</div><div class="chip-price">${c}${fNum(r.price,d)}</div><div class="chip-pct ${r.pct>=0?'up':'down'}">${sign}${r.pct.toFixed(2)}%</div></div>`;
     }).join('');
   }
