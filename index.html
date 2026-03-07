@@ -125,7 +125,7 @@
   </div>
   <div class="account-add-row">
     <label class="account-add-label" data-i18n="label_account">계좌</label>
-    <input id="inAccountName" class="account-add-input" placeholder="키움 / 미래에셋" />
+    <input id="inAccountName" class="account-add-input" data-i18n-placeholder="acc_placeholder" placeholder="키움 / 미래에셋" />
     <button class="btn-sm" onclick="addAccount()">+ 추가</button>
     <div id="accountTags" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
   </div>
@@ -227,11 +227,11 @@
       </div>
       <div class="fg" style="margin-bottom:10px;">
         <label data-i18n="contact_subject">제목</label>
-        <input type="text" name="subject" id="contactSubject" placeholder="문의 제목" required>
+        <input type="text" name="subject" id="contactSubject" data-i18n-placeholder="contact_subject_ph" placeholder="문의 제목" required>
       </div>
       <div class="fg" style="margin-bottom:16px;">
         <label data-i18n="contact_message">내용</label>
-        <textarea name="message" id="contactMessage" rows="5" placeholder="문의 내용을 입력해 주세요." required style="resize:vertical;min-height:100px;"></textarea>
+        <textarea name="message" id="contactMessage" rows="5" data-i18n-placeholder="contact_message_ph" placeholder="문의 내용을 입력해 주세요." required style="resize:vertical;min-height:100px;"></textarea>
       </div>
       <div id="contactStatus" style="font-size:11px;min-height:18px;margin-bottom:10px;font-family:'Space Mono',monospace;"></div>
       <div style="display:flex;gap:8px;">

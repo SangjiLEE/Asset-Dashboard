@@ -67,6 +67,9 @@ const i18n = {
     signup_btn: "회원가입",
     toast_login_ok: "로그인 완료!",
     toast_logout_ok: "로그아웃 완료",
+    toast_no_data: "데이터 없음",
+    contact_subject_ph: "문의 제목",
+    contact_message_ph: "문의 내용을 입력해 주세요.",
     hero_headline: "언제까지 계좌 하나하나 볼꺼야?<br><span>한꺼번에 확인해!</span>",
     hero_sub: "미국 · 한국 · 일본 주식을 하나의 대시보드에서",
     intro_hide: "소개 접기",
@@ -155,6 +158,9 @@ const i18n = {
     signup_btn: "Sign Up",
     toast_login_ok: "Signed in!",
     toast_logout_ok: "Signed out",
+    toast_no_data: "No data",
+    contact_subject_ph: "Subject",
+    contact_message_ph: "Enter your message here.",
     hero_headline: "Stop checking accounts one by one.<br><span>See them all at once!</span>",
     hero_sub: "US · Korean · Japanese stocks in one dashboard",
     intro_hide: "Hide intro",
@@ -243,6 +249,9 @@ const i18n = {
     signup_btn: "新規登録",
     toast_login_ok: "ログインしました！",
     toast_logout_ok: "ログアウトしました",
+    toast_no_data: "データなし",
+    contact_subject_ph: "件名を入力してください",
+    contact_message_ph: "お問い合わせ内容を入力してください。",
     hero_headline: "いつまで口座をひとつひとつ確認するの？<br><span>まとめて確認しよう！</span>",
     hero_sub: "米国・韓国・日本株をひとつのダッシュボードで",
     intro_hide: "紹介を閉じる",
@@ -357,6 +366,11 @@ function applyTheme() {
 }
 
 function updateUI() {
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (i18n[currentLang][key]) el.placeholder = i18n[currentLang][key];
+  });
+
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (i18n[currentLang][key]) {
@@ -1134,7 +1148,7 @@ async function loadChart() {
       failed.push(holdings[i].symbol);
     }
   });
-  if (failed.length) toast(`⚠️ 데이터 없음: ${failed.join(', ')}`, 'err');
+  if (failed.length) toast(`⚠️ ${i18n[currentLang].toast_no_data}: ${failed.join(', ')}`, 'err');
 
   if (!Object.keys(historyCache).length) {
     if (area) area.innerHTML=`<div class="empty">${i18n[currentLang].data_not_found}<br><button class="btn-sm" style="margin-top:12px;" onclick="loadChart()">↻</button></div>`;
