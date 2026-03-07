@@ -252,6 +252,15 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
   header{margin-bottom:14px;padding-bottom:12px;}
 }
 
+/* ─── Hero Banner ─── */
+.hero-banner{margin-bottom:20px;padding:36px 32px;background:var(--surface);border:1px solid var(--border);border-radius:16px;text-align:center;position:relative;overflow:hidden;}
+.hero-banner::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(124,92,252,.15) 0%,transparent 70%);pointer-events:none;}
+.hero-eyebrow{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero-headline{font-size:28px;font-weight:700;line-height:1.4;color:var(--text);margin-bottom:12px;}
+.hero-headline span{color:var(--accent);}
+.hero-sub{font-size:13px;color:var(--text2);letter-spacing:.3px;}
+@media(max-width:600px){.hero-banner{padding:24px 18px;}.hero-headline{font-size:20px;}}
+
 /* ─── Intro Section ─── */
 .intro-section{margin-bottom:24px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;}
 .intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
