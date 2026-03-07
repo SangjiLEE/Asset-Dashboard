@@ -1190,6 +1190,14 @@ document.addEventListener('DOMContentLoaded', () => {
     firebase.auth().onAuthStateChanged(async (user) => {
       const isNewLogin = _authReady && !currentUser && !!user;
       const isLogout   = _authReady && !!currentUser && !user;
+
+      // 로그아웃 시 pending 저장 타이머를 즉시 취소
+      // (타이머가 currentUser 복원 후 빈 데이터를 Firestore에 덮어쓰는 버그 방지)
+      if (isLogout) {
+        clearTimeout(_saveTimer);
+        _saveTimer = null;
+      }
+
       currentUser = user;
       _authReady = true;
 
