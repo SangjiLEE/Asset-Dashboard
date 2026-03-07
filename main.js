@@ -69,6 +69,8 @@ const i18n = {
     toast_logout_ok: "로그아웃 완료",
     hero_headline: "언제까지 계좌 하나하나 볼꺼야?<br><span>한꺼번에 확인해!</span>",
     hero_sub: "미국 · 한국 · 일본 주식을 하나의 대시보드에서",
+    intro_hide: "소개 접기",
+    intro_show: "소개 펼치기",
     intro_title1: "복수국가의 증권계좌 관리가능",
     intro_desc1: "Multifolios에서는 국가와 상관없이 복수 계좌의 포트폴리오 관리가 가능합니다. 미국(NYSE·NASDAQ), 한국(KRX) 등 다양한 시장의 자산을 한눈에 확인하세요.",
     intro_title2: "수익률 그래프",
@@ -155,6 +157,8 @@ const i18n = {
     toast_logout_ok: "Signed out",
     hero_headline: "Stop checking accounts one by one.<br><span>See them all at once!</span>",
     hero_sub: "US · Korean · Japanese stocks in one dashboard",
+    intro_hide: "Hide intro",
+    intro_show: "Show intro",
     intro_title1: "Multi-Country Account Management",
     intro_desc1: "Multifolios lets you manage multiple brokerage accounts across any country. Track US (NYSE·NASDAQ), Korean (KRX), and other markets all in one place.",
     intro_title2: "Return Charts",
@@ -241,6 +245,8 @@ const i18n = {
     toast_logout_ok: "ログアウトしました",
     hero_headline: "いつまで口座をひとつひとつ確認するの？<br><span>まとめて確認しよう！</span>",
     hero_sub: "米国・韓国・日本株をひとつのダッシュボードで",
+    intro_hide: "紹介を閉じる",
+    intro_show: "紹介を開く",
     intro_title1: "複数国の証券口座管理",
     intro_desc1: "Multifoliosでは、国を問わず複数の証券口座のポートフォリオ管理が可能です。米国(NYSE·NASDAQ)、韓国(KRX)など様々な市場の資産を一目で確認できます。",
     intro_title2: "リターングラフ",
@@ -314,6 +320,18 @@ function getChartTheme() {
     donutBorder:  dark ? '#0a0a0f'             : '#f0f0f7',
   };
 }
+
+function toggleIntroPanel() {
+  const panel = document.getElementById('introPanel');
+  const icon = document.getElementById('introToggleIcon');
+  const text = document.getElementById('introToggleText');
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  icon.textContent = isHidden ? '▲' : '▼';
+  text.textContent = isHidden ? i18n[currentLang].intro_hide : i18n[currentLang].intro_show;
+  localStorage.setItem('ph2_intro_visible', isHidden ? '1' : '0');
+}
+window.toggleIntroPanel = toggleIntroPanel;
 
 function toggleTheme() {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -1433,6 +1451,17 @@ window.logout = logout;
 document.addEventListener('DOMContentLoaded', () => {
   // Apply saved theme
   applyTheme();
+
+  // Apply saved intro panel state
+  const introVisible = localStorage.getItem('ph2_intro_visible');
+  if (introVisible === '0') {
+    const panel = document.getElementById('introPanel');
+    const icon = document.getElementById('introToggleIcon');
+    const text = document.getElementById('introToggleText');
+    if (panel) panel.style.display = 'none';
+    if (icon) icon.textContent = '▼';
+    if (text) text.textContent = i18n[currentLang].intro_show;
+  }
 
   // Render immediately from localStorage
   updateUI();

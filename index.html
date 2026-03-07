@@ -48,6 +48,16 @@
   </div>
 </header>
 
+<!-- Intro Toggle Button -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+  <button class="intro-toggle-btn" id="introToggleBtn" onclick="toggleIntroPanel()">
+    <span id="introToggleIcon">▲</span> <span id="introToggleText" data-i18n="intro_hide">소개 접기</span>
+  </button>
+</div>
+
+<!-- Hero Banner + Intro Wrapper -->
+<div id="introPanel">
+
 <!-- Hero Banner -->
 <div class="hero-banner">
   <div class="hero-eyebrow">Multifolios</div>
@@ -81,6 +91,8 @@
     </div>
   </div>
 </section>
+
+</div><!-- /introPanel -->
 
 <!-- Summary Cards -->
 <div class="cards">
