@@ -294,7 +294,7 @@ let historyCache    = {};
 let chartInst = null, donutInst = null, barInst = null;
 let chartMode = 'asset';
 let sliderDates = [];
-const COLORS = ['#7c5cfc','#00d4aa','#ff4d6a','#f5a623','#4fc3f7','#81c784','#ce93d8','#ffb74d','#e57373','#64b5f6','#a5d6a7','#fff176','#f48fb1','#80cbc4','#bcaaa4','#b0bec5','#ef9a9a','#90caf9','#a3e0a3','#ffe082'];
+const COLORS = ['#7c5cfc','#00d4aa','#ff4d6a','#f5a623','#4fc3f7','#81c784','#ce93d8','#ffb74d','#e57373','#64b5f6','#a5d6a7','#fff176','#f48fb1','#80cbc4','#bcaaa4','#b0bec5','#ef9a9a','#90caf9','#a3e0a3','#ffe082','#b39ddb','#80deea','#ffcc80','#c5e1a5','#f8bbd0','#b2ebf2','#dce775','#ffab91','#e1bee7','#b2dfdb','#d4e157','#ff8a65','#9575cd','#26c6da','#ffa726','#66bb6a','#ec407a','#29b6f6','#26a69a','#8d6e63'];
 let currentUser = null;
 
 // ═══════════════════════════════════════
