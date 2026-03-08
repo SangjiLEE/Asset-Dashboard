@@ -695,6 +695,7 @@ function save() {
 // AUTH & CLOUD SYNC
 // ═══════════════════════════════════════
 let _db = null;
+let _cloudLoaded = false; // Firestore 로드 성공 여부 — false인 동안 save() 차단
 function getDb() {
   if (!_db) {
     try { _db = firebase.firestore(); } catch(e) {}
@@ -711,6 +712,7 @@ function saveToFirestore() {
 
 async function saveToFirestoreNow() {
   if (!currentUser) return;
+  if (!_cloudLoaded) return; // 클라우드 로드 미완료 시 덮어쓰기 차단
   const db = getDb();
   if (!db) return;
   try {
@@ -729,6 +731,7 @@ async function loadFromFirestore() {
   if (!currentUser) return;
   const db = getDb();
   if (!db) return;
+  _cloudLoaded = false;
   try {
     const doc = await db.collection('users').doc(currentUser.uid).get();
     if (doc.exists) {
@@ -746,8 +749,10 @@ async function loadFromFirestore() {
         console.log('[Firestore] Migrated local data to cloud');
       }
     }
+    _cloudLoaded = true;
   } catch(e) {
     console.error('[Firestore] Load failed:', e);
+    // 로드 실패 시 _cloudLoaded = false 유지 → save() 차단
   }
 }
 
@@ -1614,6 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isLogout || isSwitching) {
         clearTimeout(_saveTimer);
         _saveTimer = null;
+        _cloudLoaded = false;
       }
 
       currentUser = user;
