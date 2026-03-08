@@ -1117,7 +1117,7 @@ function renderBrokerDonut() {
   }
   section.style.display = 'block';
 
-  // 계좌별 그룹핑 (전체 holdings 기준)
+  // 계좌별 그룹핑 — 손익률 포함
   const groupMap = {};
   for (const h of holdings) {
     const accId   = h.accountId || '__none__';
@@ -1126,49 +1126,70 @@ function renderBrokerDonut() {
       : i18n[currentLang].no_account;
     if (!groupMap[accId]) groupMap[accId] = { name: accName, items: [], totalVal: 0 };
     const val = convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
-    groupMap[accId].items.push({ symbol: h.symbol.split('.')[0], val });
+    const pnl = h.currentPrice ? (h.currentPrice - h.buyPrice) / h.buyPrice * 100 : null;
+    groupMap[accId].items.push({ symbol: h.symbol.split('.')[0], val, pnl });
     groupMap[accId].totalVal += val;
   }
 
-  const groups = Object.values(groupMap);
+  const groups = Object.values(groupMap).map((g, i) => ({ ...g, color: COLORS[i % COLORS.length] }));
   const total  = groups.reduce((s, g) => s + g.totalVal, 0);
-  const labels = groups.map(g => g.name);
-  const vals   = groups.map(g => g.totalVal);
   const ct     = getChartTheme();
+
+  // 커스텀 HTML 툴팁
+  const externalTooltip = (context) => {
+    const el = document.getElementById('brokerTooltip');
+    const { chart, tooltip } = context;
+    if (!el) return;
+    if (tooltip.opacity === 0) { el.style.display = 'none'; return; }
+    const dp = tooltip.dataPoints?.[0];
+    if (!dp) { el.style.display = 'none'; return; }
+    const g = groups[dp.dataIndex];
+    const accPct = (g.totalVal / total * 100).toFixed(1);
+
+    const rows = g.items.map(it => {
+      const itPct = (it.val / total * 100).toFixed(1);
+      const pnlHtml = it.pnl != null
+        ? `<span class="btt-pnl ${it.pnl >= 0 ? 'up' : 'down'}">${it.pnl >= 0 ? '+' : ''}${it.pnl.toFixed(2)}%</span>`
+        : `<span class="btt-pnl" style="color:var(--text3)">—</span>`;
+      return `<div class="btt-row"><span class="btt-dot" style="background:${g.color}"></span><span class="btt-sym">${it.symbol}</span><span class="btt-alloc">${itPct}%</span>${pnlHtml}</div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="btt-header"><span class="btt-dot" style="background:${g.color}"></span><span class="btt-name">${g.name}</span><span class="btt-total-pct">${accPct}%</span></div>
+      <div class="btt-divider"></div>
+      ${rows}`;
+
+    const cardEl  = section.querySelector('.chart-card');
+    const cRect   = chart.canvas.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
+    el.style.display = 'block';
+    let left = (cRect.left - cardRect.left) + tooltip.caretX + 14;
+    let top  = (cRect.top  - cardRect.top)  + tooltip.caretY - 20;
+    // 오른쪽 밖으로 넘칠 때 왼쪽으로
+    if (left + el.offsetWidth > cardEl.offsetWidth - 4) left = (cRect.left - cardRect.left) + tooltip.caretX - el.offsetWidth - 14;
+    el.style.left = Math.max(0, left) + 'px';
+    el.style.top  = Math.max(0, top)  + 'px';
+  };
 
   if (brokerDonutInst) brokerDonutInst.destroy();
   brokerDonutInst = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels,
-      datasets: [{ data: vals, backgroundColor: COLORS.slice(0, groups.length), borderWidth: 2, borderColor: ct.donutBorder, hoverOffset: 5 }]
+      labels: groups.map(g => g.name),
+      datasets: [{ data: groups.map(g => g.totalVal), backgroundColor: groups.map(g => g.color), borderWidth: 2, borderColor: ct.donutBorder, hoverOffset: 5 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '65%',
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: ct.tooltipBg, borderColor: ct.tooltipBorder, borderWidth: 1,
-          titleColor: ct.tooltipTitle, bodyColor: ct.tooltipBody,
-          callbacks: {
-            title: ctx => {
-              const g = groups[ctx[0].dataIndex];
-              return `${g.name}  ${(g.totalVal / total * 100).toFixed(1)}%`;
-            },
-            label: () => '',
-            afterBody: ctx => {
-              const g = groups[ctx[0].dataIndex];
-              return g.items.map(it => `  ${it.symbol}: ${(it.val / total * 100).toFixed(1)}%`);
-            }
-          }
-        }
+        tooltip: { enabled: false, external: externalTooltip }
       }
     }
   });
 
-  list.innerHTML = groups.map((g, i) => {
+  list.innerHTML = groups.map(g => {
     const pct = (g.totalVal / total * 100).toFixed(1);
-    return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${g.name}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
+    return `<div class="alloc-item"><div class="alloc-dot" style="background:${g.color}"></div><div class="alloc-name">${g.name}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${g.color}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
   }).join('');
 }
 

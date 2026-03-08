@@ -120,7 +120,7 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 
 /* Holdings */
 .holdings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;display:flex;flex-direction:column;}
-.holdings-list{flex:1;overflow-y:auto;max-height:340px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.holdings-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
 .h-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:default;transition:.15s;}
 .h-item:hover{background:var(--surface2);}
 .h-ticker{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);min-width:56px;}
@@ -143,6 +143,19 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 .alloc-bar{height:100%;border-radius:2px;transition:width .5s;}
 .alloc-pct{font-family:'Space Mono',monospace;font-size:10px;color:var(--text2);min-width:32px;text-align:right;}
 #allocList{max-height:160px;overflow-y:auto;}
+
+/* Broker Donut Tooltip */
+#brokerTooltip{position:absolute;z-index:20;pointer-events:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'Space Mono',monospace;min-width:170px;box-shadow:0 4px 20px rgba(0,0,0,.3);white-space:nowrap;}
+.btt-header{display:flex;align-items:center;gap:7px;margin-bottom:2px;}
+.btt-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;display:inline-block;}
+.btt-name{font-size:11px;font-weight:700;color:var(--text);flex:1;}
+.btt-total-pct{font-size:11px;font-weight:700;color:var(--text);}
+.btt-divider{height:1px;background:var(--border);margin:7px 0;}
+.btt-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+.btt-row:last-child{margin-bottom:0;}
+.btt-sym{font-size:10px;color:var(--text2);flex:1;}
+.btt-alloc{font-size:10px;color:var(--text3);}
+.btt-pnl{font-size:10px;min-width:52px;text-align:right;font-weight:700;}
 
 /* Toast */
 .toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:12px;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);max-width:300px;}
@@ -201,7 +214,7 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 @media(max-width:1024px){
   .main-grid{grid-template-columns:1fr;}
   .bottom-grid{grid-template-columns:1fr;}
-  .holdings-list{max-height:300px;}
+  .holdings-list{max-height:320px;}
 }
 
 /* ─── Tablet 768px ─── */
