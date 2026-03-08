@@ -721,6 +721,8 @@ async function saveToFirestoreNow() {
       accounts,
       updatedAt: new Date().toISOString()
     });
+    // uid별 로컬 백업 갱신
+    localStorage.setItem(`ph2_bak_${currentUser.uid}`, JSON.stringify({ holdings, accounts }));
     console.log('[Firestore] Saved');
   } catch(e) {
     console.error('[Firestore] Save failed:', e);
@@ -732,27 +734,44 @@ async function loadFromFirestore() {
   const db = getDb();
   if (!db) return;
   _cloudLoaded = false;
+  const uid = currentUser.uid;
   try {
-    const doc = await db.collection('users').doc(currentUser.uid).get();
+    const doc = await db.collection('users').doc(uid).get();
     if (doc.exists) {
       const data = doc.data();
       holdings = data.holdings || [];
       accounts = data.accounts || [];
       localStorage.setItem('ph2_holdings', JSON.stringify(holdings));
       localStorage.setItem('ph2_accounts', JSON.stringify(accounts));
+      localStorage.setItem(`ph2_bak_${uid}`, JSON.stringify({ holdings, accounts }));
       console.log('[Firestore] Loaded from cloud');
     } else {
-      // Firestore에 문서가 없을 때: 로컬 데이터가 있을 때만 마이그레이션
-      // holdings=[]인 상태(로그아웃 후 복귀 등)에서는 절대 저장하지 않음
-      if (holdings.length > 0) {
-        await saveToFirestoreNow();
-        console.log('[Firestore] Migrated local data to cloud');
+      // 신규 유저: 로컬 데이터가 있을 때만 마이그레이션
+      // _cloudLoaded 가드를 우회해 직접 저장 (saveToFirestoreNow는 _cloudLoaded=false라 차단됨)
+      if (holdings.length > 0 || accounts.length > 0) {
+        const dbInner = getDb();
+        if (dbInner) {
+          await dbInner.collection('users').doc(uid).set({
+            holdings, accounts, updatedAt: new Date().toISOString()
+          });
+          localStorage.setItem(`ph2_bak_${uid}`, JSON.stringify({ holdings, accounts }));
+          console.log('[Firestore] Migrated local data to cloud');
+        }
       }
     }
     _cloudLoaded = true;
   } catch(e) {
     console.error('[Firestore] Load failed:', e);
-    // 로드 실패 시 _cloudLoaded = false 유지 → save() 차단
+    // Firestore 실패 시 uid별 로컬 백업으로 복원
+    try {
+      const bak = JSON.parse(localStorage.getItem(`ph2_bak_${uid}`) || 'null');
+      if (bak && (bak.holdings?.length > 0 || bak.accounts?.length > 0)) {
+        holdings = bak.holdings || [];
+        accounts = bak.accounts || [];
+        console.log('[Firestore] Restored from local backup');
+        _cloudLoaded = true; // 백업 복원 성공 → 이후 재저장 허용
+      }
+    } catch(e2) {}
   }
 }
 
