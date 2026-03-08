@@ -1119,7 +1119,7 @@ function renderBrokerDonut() {
 
   // 계좌별 그룹핑 — 손익률 포함
   const groupMap = {};
-  for (const h of holdings) {
+  for (const [idx, h] of holdings.entries()) {
     const accId   = h.accountId || '__none__';
     const accName = h.accountId
       ? (accounts.find(a => a.id === h.accountId)?.name || i18n[currentLang].no_account)
@@ -1127,7 +1127,7 @@ function renderBrokerDonut() {
     if (!groupMap[accId]) groupMap[accId] = { name: accName, items: [], totalVal: 0 };
     const val = convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
     const pnl = h.currentPrice ? (h.currentPrice - h.buyPrice) / h.buyPrice * 100 : null;
-    groupMap[accId].items.push({ symbol: h.symbol.split('.')[0], val, pnl });
+    groupMap[accId].items.push({ symbol: h.symbol.split('.')[0], val, pnl, color: COLORS[idx % COLORS.length] });
     groupMap[accId].totalVal += val;
   }
 
@@ -1151,7 +1151,7 @@ function renderBrokerDonut() {
       const pnlHtml = it.pnl != null
         ? `<span class="btt-pnl ${it.pnl >= 0 ? 'up' : 'down'}">${it.pnl >= 0 ? '+' : ''}${it.pnl.toFixed(2)}%</span>`
         : `<span class="btt-pnl" style="color:var(--text3)">—</span>`;
-      return `<div class="btt-row"><span class="btt-dot" style="background:${g.color}"></span><span class="btt-sym">${it.symbol}</span><span class="btt-alloc">${itPct}%</span>${pnlHtml}</div>`;
+      return `<div class="btt-row"><span class="btt-dot" style="background:${it.color}"></span><span class="btt-sym">${it.symbol}</span><span class="btt-alloc">${itPct}%</span>${pnlHtml}</div>`;
     }).join('');
 
     el.innerHTML = `
