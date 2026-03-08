@@ -1064,10 +1064,10 @@ function renderHoldings() {
       <div style="flex:1; overflow:hidden;">
         <div class="h-ticker" style="display:flex; align-items:center; gap:4px;">${h.symbol.split('.')[0]}${badge}${accBadge}</div>
         <div class="h-name" title="${h.name}">${h.name}</div>
-        <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}${currentLang==='ko'?'주':' Shares'}@${isUsd?'$':'₩'}${fNum(h.buyPrice,isUsd?2:0)}</div>
+        <div style="font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;margin-top:1px;">${h.shares}${currentLang==='ko'?'주':' Shares'}@${isUsd?'$':'₩'}${fNum(h.buyPrice,isUsd?4:0)}</div>
       </div>
       <div class="h-right">
-        <div class="h-price ${cls}">${h.currentPrice?(isUsd?'$':'₩')+fNum(h.currentPrice,isUsd?2:0):'—'}</div>
+        <div class="h-price ${cls}">${h.currentPrice?(isUsd?'$':'₩')+fNum(h.currentPrice,isUsd?4:0):'—'}</div>
         <div class="h-pct ${cls}">${pnl!=null?sign+pnl.toFixed(2)+'%':'—'}</div>
       </div>
       <button class="h-del" onclick="removeHolding(${h.id})">✕</button>
