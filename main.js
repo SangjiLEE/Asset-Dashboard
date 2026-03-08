@@ -1141,12 +1141,17 @@ function renderHoldings() {
 
 function renderDonut() {
   const canvas=document.getElementById('donut'), list=document.getElementById('allocList');
+  const grid=document.getElementById('donutGrid'), canvasWrap=document.getElementById('donutCanvasWrap');
   if (!canvas || !list) return;
   const filtered = getFilteredHoldings(holdAccFilter);
   if (!filtered.length) {
-    list.innerHTML=`<div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;">${i18n[currentLang].empty_after_add}</div>`;
+    if(grid){ grid.style.display='flex'; grid.style.justifyContent='center'; grid.style.alignItems='center'; grid.style.minHeight='160px'; }
+    if(canvasWrap) canvasWrap.style.display='none';
+    list.innerHTML=`<div style="color:var(--text3);font-size:11px;font-family:'Space Mono',monospace;text-align:center;">${i18n[currentLang].empty_after_add}</div>`;
     if(donutInst){donutInst.destroy();donutInst=null;} return;
   }
+  if(grid){ grid.style.display='grid'; grid.style.gridTemplateColumns='160px 1fr'; grid.style.justifyContent=''; grid.style.alignItems='center'; grid.style.minHeight=''; }
+  if(canvasWrap) canvasWrap.style.display='';
   const vals = filtered.map(h => convert((h.currentPrice || h.buyPrice) * h.shares, h.currency));
   const total = vals.reduce((a,b)=>a+b,0);
   const labels = filtered.map(h=>h.symbol.split('.')[0]);
