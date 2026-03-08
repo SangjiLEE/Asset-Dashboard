@@ -29,9 +29,11 @@ exports.getStockData = onCall(
         if (!start || !end) {
           throw new HttpsError("invalid-argument", "Start and End are required for history");
         }
+        const endPlusOne = new Date(end);
+        endPlusOne.setDate(endPlusOne.getDate() + 1);
         const result = await yahooFinance.historical(symbol, {
           period1: start,
-          period2: end,
+          period2: endPlusOne.toISOString().split('T')[0],
         });
         return result.map(d => ({
           date: d.date.toISOString().split("T")[0],

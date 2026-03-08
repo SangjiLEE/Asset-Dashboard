@@ -548,7 +548,8 @@ async function fetchFromYahoo(symbol, type = 'price', start = '', end = '') {
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
   } else {
     const p1 = Math.floor(new Date(start).getTime() / 1000);
-    const p2 = Math.floor(new Date(end).getTime() / 1000);
+    const endPlusOne = new Date(end); endPlusOne.setDate(endPlusOne.getDate() + 1);
+    const p2 = Math.floor(endPlusOne.getTime() / 1000);
     url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${p1}&period2=${p2}&interval=1d`;
   }
   const raw = await fetchWithProxy(url);
