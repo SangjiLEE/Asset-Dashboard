@@ -1201,7 +1201,7 @@ function renderBar() {
   if (!canvas || !wrap) return;
   const filtered = getFilteredHoldings(holdAccFilter);
   if (!filtered.length) {
-    scrollWrap.style.display='none'; wrap.style.display='block';
+    scrollWrap.style.display='none'; wrap.style.display='flex'; wrap.style.justifyContent='center'; wrap.style.alignItems='center'; wrap.style.minHeight='80px';
     if(barInst){barInst.destroy();barInst=null;} return;
   }
   scrollWrap.style.display='block'; wrap.style.display='none';
