@@ -29,7 +29,8 @@ const i18n = {
     btn_load: "조회",
     holdings_title: "보유 종목",
     btn_refresh: "새로고침",
-    allocation_title: "비중 배분",
+    allocation_title: "종목별 비중 배분",
+    broker_alloc_title: "증권사별 비중 배분",
     pnl_by_asset: "종목별 손익률",
     empty_holdings: "아직 추가된 종목이 없습니다",
     empty_chart: "종목을 추가하면 그래프가 표시됩니다",
@@ -121,7 +122,8 @@ const i18n = {
     btn_load: "Load",
     holdings_title: "Holdings",
     btn_refresh: "Refresh",
-    allocation_title: "Allocation",
+    allocation_title: "Stock Allocation",
+    broker_alloc_title: "Broker Allocation",
     pnl_by_asset: "P&L by Asset",
     empty_holdings: "No assets added yet",
     empty_chart: "Add an asset to see the chart",
@@ -213,7 +215,8 @@ const i18n = {
     btn_load: "表示",
     holdings_title: "保有銘柄",
     btn_refresh: "更新",
-    allocation_title: "配分",
+    allocation_title: "銘柄別配分",
+    broker_alloc_title: "証券会社別配分",
     pnl_by_asset: "銘柄別損益率",
     empty_holdings: "銘柄を追加してください",
     empty_chart: "銘柄を追加するとグラフが表示されます",
@@ -294,7 +297,7 @@ let usdKrwRate      = 1350;
 let usdJpyRate      = 150;
 let priceCache      = {};
 let historyCache    = {};
-let chartInst = null, donutInst = null, barInst = null;
+let chartInst = null, donutInst = null, barInst = null, brokerDonutInst = null;
 let chartMode = 'asset';
 let sliderDates = [];
 const COLORS = ['#7c5cfc','#00d4aa','#ff4d6a','#f5a623','#4fc3f7','#81c784','#ce93d8','#ffb74d','#e57373','#64b5f6','#a5d6a7','#fff176','#f48fb1','#80cbc4','#bcaaa4','#b0bec5','#ef9a9a','#90caf9','#a3e0a3','#ffe082','#b39ddb','#80deea','#ffcc80','#c5e1a5','#f8bbd0','#b2ebf2','#dce775','#ffab91','#e1bee7','#b2dfdb','#d4e157','#ff8a65','#9575cd','#26c6da','#ffa726','#66bb6a','#ec407a','#29b6f6','#26a69a','#8d6e63'];
@@ -901,6 +904,7 @@ function setHoldAccFilter(filter) {
   renderHoldings();
   renderDonut();
   renderBar();
+  renderBrokerDonut();
 }
 
 function toggleChartAccFilter(id) {
@@ -994,7 +998,7 @@ function convert(val, from) {
 
 function renderAll() {
   renderCards(); renderHoldings(); renderDonut(); renderBar(); resetChartIfEmpty();
-  renderChartAccFilter();
+  renderChartAccFilter(); renderBrokerDonut();
 }
 
 function resetChartIfEmpty() {
@@ -1096,6 +1100,75 @@ function renderDonut() {
   list.innerHTML=filtered.map((h,i)=>{
     const pct=(vals[i]/total*100).toFixed(1);
     return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${h.symbol.split('.')[0]}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
+  }).join('');
+}
+
+function renderBrokerDonut() {
+  const section = document.getElementById('brokerAllocSection');
+  const canvas  = document.getElementById('brokerDonut');
+  const list    = document.getElementById('brokerAllocList');
+  if (!section || !canvas || !list) return;
+
+  // 계좌가 없으면 숨김
+  if (!accounts.length || !holdings.length) {
+    section.style.display = 'none';
+    if (brokerDonutInst) { brokerDonutInst.destroy(); brokerDonutInst = null; }
+    return;
+  }
+  section.style.display = 'block';
+
+  // 계좌별 그룹핑 (전체 holdings 기준)
+  const groupMap = {};
+  for (const h of holdings) {
+    const accId   = h.accountId || '__none__';
+    const accName = h.accountId
+      ? (accounts.find(a => a.id === h.accountId)?.name || i18n[currentLang].no_account)
+      : i18n[currentLang].no_account;
+    if (!groupMap[accId]) groupMap[accId] = { name: accName, items: [], totalVal: 0 };
+    const val = convert((h.currentPrice || h.buyPrice) * h.shares, h.currency);
+    groupMap[accId].items.push({ symbol: h.symbol.split('.')[0], val });
+    groupMap[accId].totalVal += val;
+  }
+
+  const groups = Object.values(groupMap);
+  const total  = groups.reduce((s, g) => s + g.totalVal, 0);
+  const labels = groups.map(g => g.name);
+  const vals   = groups.map(g => g.totalVal);
+  const ct     = getChartTheme();
+
+  if (brokerDonutInst) brokerDonutInst.destroy();
+  brokerDonutInst = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: COLORS.slice(0, groups.length), borderWidth: 2, borderColor: ct.donutBorder, hoverOffset: 5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: ct.tooltipBg, borderColor: ct.tooltipBorder, borderWidth: 1,
+          titleColor: ct.tooltipTitle, bodyColor: ct.tooltipBody,
+          callbacks: {
+            title: ctx => {
+              const g = groups[ctx[0].dataIndex];
+              return `${g.name}  ${(g.totalVal / total * 100).toFixed(1)}%`;
+            },
+            label: () => '',
+            afterBody: ctx => {
+              const g = groups[ctx[0].dataIndex];
+              return g.items.map(it => `  ${it.symbol}: ${(it.val / total * 100).toFixed(1)}%`);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  list.innerHTML = groups.map((g, i) => {
+    const pct = (g.totalVal / total * 100).toFixed(1);
+    return `<div class="alloc-item"><div class="alloc-dot" style="background:${COLORS[i]}"></div><div class="alloc-name">${g.name}</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:${pct}%;background:${COLORS[i]}"></div></div><div class="alloc-pct">${pct}%</div></div>`;
   }).join('');
 }
 
