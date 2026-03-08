@@ -818,14 +818,20 @@ async function logout() {
   _saveTimer = null;
 
   // _cloudLoaded 가드를 우회해서 직접 저장 (로그아웃 시는 항상 현재 데이터를 저장해야 함)
+  // 8초 타임아웃: 네트워크 문제로 프로미스가 무한 대기하는 경우 방지
   let saved = false;
   const db = getDb();
   if (db) {
     try {
-      await db.collection('users').doc(currentUser.uid).set({
-        holdings, accounts, updatedAt: new Date().toISOString()
-      });
-      localStorage.setItem(`ph2_bak_${currentUser.uid}`, JSON.stringify({ holdings, accounts }));
+      const uid = currentUser.uid;
+      const payload = { holdings, accounts, updatedAt: new Date().toISOString() };
+      // 로컬 백업은 Firestore 저장 전에 먼저 갱신
+      localStorage.setItem(`ph2_bak_${uid}`, JSON.stringify({ holdings, accounts }));
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+      await Promise.race([
+        db.collection('users').doc(uid).set(payload),
+        timeout
+      ]);
       console.log('[Firestore] Logout save OK');
       saved = true;
     } catch(e) {
