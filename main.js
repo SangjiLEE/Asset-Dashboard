@@ -1278,7 +1278,7 @@ function syncHoldingsHeight() {
   const holdList  = document.getElementById('holdList');
   if (!chartCard || !holdList) return;
   requestAnimationFrame(() => {
-    holdList.style.maxHeight = chartCard.offsetHeight + 'px';
+    holdList.style.maxHeight = Math.min(chartCard.offsetHeight, 800) + 'px';
   });
 }
 
