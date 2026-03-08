@@ -1633,11 +1633,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const isLogout    = _authReady && !!currentUser && !user;
       const isSwitching = _authReady && !!currentUser && !!user && currentUser.uid !== user.uid;
 
-      // 로그아웃 또는 계좌 전환 시 pending 저장 타이머 즉시 취소
-      // (이전 유저의 타이머가 새 currentUser로 잘못 저장하는 버그 방지)
+      // 로그아웃 또는 계좌 전환 시: 미저장 데이터를 먼저 flush한 뒤 타이머 취소
       if (isLogout || isSwitching) {
         clearTimeout(_saveTimer);
         _saveTimer = null;
+        // 타이머가 취소되기 전에 저장되지 않은 데이터가 있을 수 있으므로 즉시 저장
+        if (_cloudLoaded && currentUser) {
+          await saveToFirestoreNow();
+        }
         _cloudLoaded = false;
       }
 
