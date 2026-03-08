@@ -803,51 +803,36 @@ function signupWithEmail() {
     .catch(e => setAuthError(e.message));
 }
 
-async function logout() {
+function logout() {
   if (!currentUser) {
     firebase.auth().signOut();
     return;
   }
 
-  // 저장 중 토스트 표시
-  const savingMsgs = { ko: '저장 중...', en: 'Saving...', ja: '保存中...' };
-  const el = document.getElementById('toast');
-  if (el) { el.textContent = savingMsgs[currentLang] || savingMsgs.en; el.className = 'toast ok show'; }
-
   clearTimeout(_saveTimer);
   _saveTimer = null;
 
-  // _cloudLoaded 가드를 우회해서 직접 저장 (로그아웃 시는 항상 현재 데이터를 저장해야 함)
-  // 8초 타임아웃: 네트워크 문제로 프로미스가 무한 대기하는 경우 방지
-  let saved = false;
+  const uid = currentUser.uid;
+  // 로컬 백업 즉시 갱신
+  localStorage.setItem(`ph2_bak_${uid}`, JSON.stringify({ holdings, accounts }));
+
+  // Firestore는 fire-and-forget (서버 응답 대기 없이 백그라운드 저장)
   const db = getDb();
   if (db) {
-    try {
-      const uid = currentUser.uid;
-      const payload = { holdings, accounts, updatedAt: new Date().toISOString() };
-      // 로컬 백업은 Firestore 저장 전에 먼저 갱신
-      localStorage.setItem(`ph2_bak_${uid}`, JSON.stringify({ holdings, accounts }));
-      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
-      await Promise.race([
-        db.collection('users').doc(uid).set(payload),
-        timeout
-      ]);
-      console.log('[Firestore] Logout save OK');
-      saved = true;
-    } catch(e) {
-      console.error('[Firestore] Logout save failed:', e);
-    }
+    db.collection('users').doc(uid).set({
+      holdings, accounts, updatedAt: new Date().toISOString()
+    }).then(() => console.log('[Firestore] Logout save OK'))
+      .catch(e => console.error('[Firestore] Logout save failed:', e));
   }
 
   const resultMsgs = {
-    ko: { ok: '✅ 저장 완료 — 로그아웃합니다', fail: '⚠️ 저장 실패 — 로그아웃합니다' },
-    en: { ok: '✅ Saved — signing out', fail: '⚠️ Save failed — signing out' },
-    ja: { ok: '✅ 保存完了 — ログアウトします', fail: '⚠️ 保存失敗 — ログアウトします' }
+    ko: '✅ 저장 완료 — 로그아웃합니다',
+    en: '✅ Saved — signing out',
+    ja: '✅ 保存完了 — ログアウトします'
   };
-  const m = resultMsgs[currentLang] || resultMsgs.en;
-  toast(saved ? m.ok : m.fail, saved ? 'ok' : 'warn');
+  toast(resultMsgs[currentLang] || resultMsgs.en, 'ok');
 
-  _logoutInProgress = true; // onAuthStateChanged에서 flush 저장 및 기본 토스트 스킵
+  _logoutInProgress = true;
   firebase.auth().signOut();
 }
 
