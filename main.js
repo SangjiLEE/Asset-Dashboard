@@ -1260,6 +1260,18 @@ async function loadChart() {
 
 function drawChart() {
   chartMode==='asset' ? drawAssetChart() : drawReturnChart();
+  syncHoldingsHeight();
+}
+
+function syncHoldingsHeight() {
+  // 데스크탑(main-grid 2열)일 때만 적용
+  if (window.innerWidth <= 1024) return;
+  const chartCard = document.querySelector('.main-grid > .chart-card');
+  const holdList  = document.getElementById('holdList');
+  if (!chartCard || !holdList) return;
+  requestAnimationFrame(() => {
+    holdList.style.maxHeight = chartCard.offsetHeight + 'px';
+  });
 }
 
 function drawAssetChart() {
