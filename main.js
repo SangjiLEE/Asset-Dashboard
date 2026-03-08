@@ -739,9 +739,12 @@ async function loadFromFirestore() {
       localStorage.setItem('ph2_accounts', JSON.stringify(accounts));
       console.log('[Firestore] Loaded from cloud');
     } else {
-      // New user: migrate local data to cloud
-      await saveToFirestoreNow();
-      console.log('[Firestore] Migrated local data to cloud');
+      // Firestore에 문서가 없을 때: 로컬 데이터가 있을 때만 마이그레이션
+      // holdings=[]인 상태(로그아웃 후 복귀 등)에서는 절대 저장하지 않음
+      if (holdings.length > 0) {
+        await saveToFirestoreNow();
+        console.log('[Firestore] Migrated local data to cloud');
+      }
     }
   } catch(e) {
     console.error('[Firestore] Load failed:', e);
@@ -1602,12 +1605,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let _authReady = false;
   try {
     firebase.auth().onAuthStateChanged(async (user) => {
-      const isNewLogin = _authReady && !currentUser && !!user;
-      const isLogout   = _authReady && !!currentUser && !user;
+      const isNewLogin  = _authReady && !currentUser && !!user;
+      const isLogout    = _authReady && !!currentUser && !user;
+      const isSwitching = _authReady && !!currentUser && !!user && currentUser.uid !== user.uid;
 
-      // 로그아웃 시 pending 저장 타이머를 즉시 취소
-      // (타이머가 currentUser 복원 후 빈 데이터를 Firestore에 덮어쓰는 버그 방지)
-      if (isLogout) {
+      // 로그아웃 또는 계좌 전환 시 pending 저장 타이머 즉시 취소
+      // (이전 유저의 타이머가 새 currentUser로 잘못 저장하는 버그 방지)
+      if (isLogout || isSwitching) {
         clearTimeout(_saveTimer);
         _saveTimer = null;
       }
