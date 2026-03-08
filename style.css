@@ -162,6 +162,7 @@ input[type=range]{width:100%;accent-color:var(--accent2);cursor:pointer;}
 .toast.show{transform:translateY(0);opacity:1;}
 .toast.ok{border-left:3px solid var(--green);}
 .toast.err{border-left:3px solid var(--red);}
+.toast.warn{border-left:3px solid #f59e0b;}
 
 /* Spinner */
 .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:5px;}

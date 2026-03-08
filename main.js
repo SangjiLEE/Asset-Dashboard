@@ -696,6 +696,7 @@ function save() {
 // ═══════════════════════════════════════
 let _db = null;
 let _cloudLoaded = false; // Firestore 로드 성공 여부 — false인 동안 save() 차단
+let _logoutInProgress = false; // logout()에서 flush 저장 완료 후 signOut() 호출 중
 function getDb() {
   if (!_db) {
     try { _db = firebase.firestore(); } catch(e) {}
@@ -724,8 +725,10 @@ async function saveToFirestoreNow() {
     // uid별 로컬 백업 갱신
     localStorage.setItem(`ph2_bak_${currentUser.uid}`, JSON.stringify({ holdings, accounts }));
     console.log('[Firestore] Saved');
+    return true;
   } catch(e) {
     console.error('[Firestore] Save failed:', e);
+    return false;
   }
 }
 
@@ -800,7 +803,30 @@ function signupWithEmail() {
     .catch(e => setAuthError(e.message));
 }
 
-function logout() {
+async function logout() {
+  if (!currentUser || !_cloudLoaded) {
+    firebase.auth().signOut();
+    return;
+  }
+
+  // 저장 중 토스트 표시
+  const savingMsgs = { ko: '저장 중...', en: 'Saving...', ja: '保存中...' };
+  const el = document.getElementById('toast');
+  if (el) { el.textContent = savingMsgs[currentLang] || savingMsgs.en; el.className = 'toast ok show'; }
+
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  const saved = await saveToFirestoreNow();
+
+  const resultMsgs = {
+    ko: { ok: '✅ 저장 완료 — 로그아웃합니다', fail: '⚠️ 저장 실패 — 로그아웃합니다' },
+    en: { ok: '✅ Saved — signing out', fail: '⚠️ Save failed — signing out' },
+    ja: { ok: '✅ 保存完了 — ログアウトします', fail: '⚠️ 保存失敗 — ログアウトします' }
+  };
+  const m = resultMsgs[currentLang] || resultMsgs.en;
+  toast(saved ? m.ok : m.fail, saved ? 'ok' : 'warn');
+
+  _logoutInProgress = true; // onAuthStateChanged에서 flush 저장 및 기본 토스트 스킵
   firebase.auth().signOut();
 }
 
@@ -1634,14 +1660,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const isSwitching = _authReady && !!currentUser && !!user && currentUser.uid !== user.uid;
 
       // 로그아웃 또는 계좌 전환 시: 미저장 데이터를 먼저 flush한 뒤 타이머 취소
+      const _wasLogoutInProgress = _logoutInProgress;
       if (isLogout || isSwitching) {
         clearTimeout(_saveTimer);
         _saveTimer = null;
-        // 타이머가 취소되기 전에 저장되지 않은 데이터가 있을 수 있으므로 즉시 저장
-        if (_cloudLoaded && currentUser) {
+        // logout()에서 이미 저장한 경우 중복 저장 생략
+        if (_cloudLoaded && currentUser && !_logoutInProgress) {
           await saveToFirestoreNow();
         }
         _cloudLoaded = false;
+        _logoutInProgress = false;
       }
 
       currentUser = user;
@@ -1660,7 +1688,8 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('ph2_accounts');
         renderAccountUI();
         renderAll();
-        toast(i18n[currentLang].toast_logout_ok);
+        // logout()에서 저장 결과 토스트를 이미 표시한 경우 기본 토스트 생략
+        if (!_wasLogoutInProgress) toast(i18n[currentLang].toast_logout_ok);
       }
       renderLoginUI();
     });
