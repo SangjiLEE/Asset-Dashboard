@@ -804,7 +804,7 @@ function signupWithEmail() {
 }
 
 async function logout() {
-  if (!currentUser || !_cloudLoaded) {
+  if (!currentUser) {
     firebase.auth().signOut();
     return;
   }
@@ -816,7 +816,22 @@ async function logout() {
 
   clearTimeout(_saveTimer);
   _saveTimer = null;
-  const saved = await saveToFirestoreNow();
+
+  // _cloudLoaded 가드를 우회해서 직접 저장 (로그아웃 시는 항상 현재 데이터를 저장해야 함)
+  let saved = false;
+  const db = getDb();
+  if (db) {
+    try {
+      await db.collection('users').doc(currentUser.uid).set({
+        holdings, accounts, updatedAt: new Date().toISOString()
+      });
+      localStorage.setItem(`ph2_bak_${currentUser.uid}`, JSON.stringify({ holdings, accounts }));
+      console.log('[Firestore] Logout save OK');
+      saved = true;
+    } catch(e) {
+      console.error('[Firestore] Logout save failed:', e);
+    }
+  }
 
   const resultMsgs = {
     ko: { ok: '✅ 저장 완료 — 로그아웃합니다', fail: '⚠️ 저장 실패 — 로그아웃합니다' },
@@ -1664,9 +1679,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isLogout || isSwitching) {
         clearTimeout(_saveTimer);
         _saveTimer = null;
-        // logout()에서 이미 저장한 경우 중복 저장 생략
-        if (_cloudLoaded && currentUser && !_logoutInProgress) {
-          await saveToFirestoreNow();
+        // logout()에서 이미 저장한 경우 중복 저장 생략. isSwitching은 여기서 직접 저장.
+        if (currentUser && !_logoutInProgress) {
+          const db = getDb();
+          if (db) {
+            try {
+              await db.collection('users').doc(currentUser.uid).set({
+                holdings, accounts, updatedAt: new Date().toISOString()
+              });
+              localStorage.setItem(`ph2_bak_${currentUser.uid}`, JSON.stringify({ holdings, accounts }));
+            } catch(e) { console.error('[Firestore] Switch save failed:', e); }
+          }
         }
         _cloudLoaded = false;
         _logoutInProgress = false;
